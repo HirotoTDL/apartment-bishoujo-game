@@ -85,6 +85,9 @@ npx tsx scripts/gen_image_prompts.ts
 
 それまでは手続的に生成されるSVGプレースホルダで動作します。
 
+表情差分・進化差分まで含めた生成運用ルールは
+`docs/character_image_generation_rules.md` を参照してください。
+
 ## ディレクトリ構成
 
 ```

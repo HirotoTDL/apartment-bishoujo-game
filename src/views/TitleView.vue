@@ -4,6 +4,7 @@ import { useRouter } from "vue-router";
 import { saveAdapter, type SignInMode } from "../save/adapter";
 import { usePlayerStore } from "../stores/player";
 import AnimatedBackground from "../components/AnimatedBackground.vue";
+import Icon from "../components/Icon.vue";
 
 const router = useRouter();
 const player = usePlayerStore();
@@ -26,119 +27,354 @@ async function start(mode: SignInMode = "google") {
 </script>
 
 <template>
-  <div class="title-root min-h-screen w-full flex flex-col items-center justify-center text-white px-6 py-10 relative overflow-hidden">
+  <div class="title-root">
     <AnimatedBackground variant="rose" intensity="high" />
 
-    <!-- Decorative glow rays -->
-    <div class="absolute inset-0 pointer-events-none flex items-center justify-center">
-      <div class="title-rays"></div>
+    <!-- Light beams -->
+    <div class="title-beams">
+      <span class="beam beam-1"></span>
+      <span class="beam beam-2"></span>
+      <span class="beam beam-3"></span>
     </div>
 
-    <div class="title-container text-center max-w-2xl relative z-10 animate-fade-in-up">
-      <!-- Logo / title -->
-      <div class="title-emblem mx-auto mb-6">
-        <div class="title-emblem-inner">
-          <span class="text-5xl">💗</span>
+    <!-- Floating decorative shapes -->
+    <div class="title-decor">
+      <span class="decor decor-1">◆</span>
+      <span class="decor decor-2">✦</span>
+      <span class="decor decor-3">❀</span>
+      <span class="decor decor-4">◇</span>
+      <span class="decor decor-5">✦</span>
+      <span class="decor decor-6">❀</span>
+    </div>
+
+    <main class="title-main">
+      <!-- Vertical decorative bars -->
+      <div class="title-bar-left">
+        <div class="title-bar-deco"></div>
+        <span class="title-bar-label">CHAPTER ZERO</span>
+        <div class="title-bar-deco"></div>
+      </div>
+      <div class="title-bar-right">
+        <div class="title-bar-deco"></div>
+        <span class="title-bar-label">VERSION 0.1.0</span>
+        <div class="title-bar-deco"></div>
+      </div>
+
+      <div class="title-stage">
+        <!-- Tag line above title -->
+        <div class="title-tagline">
+          <span class="line"></span>
+          <span class="tagline-text">APARTMENT × BISHOUJO</span>
+          <span class="line"></span>
         </div>
+
+        <!-- Main title -->
+        <h1 class="title-h1">
+          <span class="title-h1-row title-h1-row-1">ハートフル</span>
+          <span class="title-h1-row title-h1-row-2">ゴリオン</span>
+        </h1>
+
+        <!-- Subtitle -->
+        <div class="title-sub">
+          <span class="sub-bracket">［</span>
+          <span class="sub-text">仮 / WORKING TITLE</span>
+          <span class="sub-bracket">］</span>
+        </div>
+
+        <!-- Subline -->
+        <p class="title-flavor">
+          全国のアパートから生まれた美少女50人、<br>
+          住人たちと出会い、絆を結び、住処を築く物語。
+        </p>
+
+        <!-- Buttons -->
+        <div class="title-actions">
+          <button class="action-btn action-btn--primary" :disabled="busy" @click="start('google')">
+            <span class="action-btn-glow"></span>
+            <Icon name="google" :size="20" />
+            <span>{{ busy ? "接続中..." : "Googleでログイン" }}</span>
+            <Icon name="arrow-right" :size="16" />
+          </button>
+          <button class="action-btn action-btn--secondary" :disabled="busy" @click="start('anonymous')">
+            <Icon name="guest" :size="18" />
+            <span>ゲストとしてプレイ</span>
+          </button>
+        </div>
+
+        <!-- Status line -->
+        <div class="title-status">
+          <Icon v-if="saveAdapter.isFirebase" name="cloud" :size="14" />
+          <Icon v-else name="save" :size="14" />
+          <span>{{ saveAdapter.isFirebase ? "クラウドセーブ — 端末間でセーブ共有可能" : "ローカル保存モード" }}</span>
+        </div>
+
+        <p v-if="errorMsg" class="title-error">
+          <Icon name="sparkle" :size="14" />
+          {{ errorMsg }}
+        </p>
       </div>
 
-      <h1 class="title-main h-title mb-1">
-        <span class="block text-6xl md:text-7xl tracking-wider">ハートフル</span>
-        <span class="block text-6xl md:text-7xl tracking-wider title-main-grad">ゴリオン</span>
-        <span class="block text-base md:text-lg text-pink-200 font-light tracking-[0.4em] mt-2">(仮)</span>
-      </h1>
-      <p class="text-pink-200/90 text-base md:text-lg tracking-[0.3em] mt-3 mb-1 font-tech">
-        APARTMENT × BISHOUJO COLLECTION
-      </p>
-      <p class="text-white/60 my-6 leading-relaxed text-sm md:text-base max-w-lg mx-auto">
-        全国のアパート名から生まれた美少女たちと出会い、戦い、仲間にしよう。<br>
-        50人のキャラクターが住む街で、<span class="text-pink-300 font-bold">あなたの理想の住まい</span>を築く物語。
-      </p>
-
-      <!-- Auth buttons -->
-      <div class="space-y-3 mt-8">
-        <button class="btn-google w-72 text-base mx-auto" :disabled="busy" @click="start('google')">
-          <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34 6.1 29.3 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.3-.1-2.3-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 16 18.9 13 24 13c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29 35.4 26.6 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.2 4.3-4.1 5.7l6.2 5.2C40.7 35.6 44 30.3 44 24c0-1.3-.1-2.3-.4-3.5z"/></svg>
-          <span>{{ busy ? "読み込み中..." : "Googleでログイン" }}</span>
-        </button>
-        <button class="btn-secondary w-72 text-sm mx-auto block" :disabled="busy" @click="start('anonymous')">
-          {{ busy ? "..." : "👤 ゲストとしてプレイ" }}
-        </button>
-
-        <p v-if="!saveAdapter.isFirebase" class="text-xs text-yellow-200 mt-3">
-          ⚠️ ローカル保存モード — Firebase設定でクラウドセーブが有効化されます
-        </p>
-        <p v-else class="text-xs text-white/45 mt-3">
-          ☁ クラウドセーブ有効 — 複数端末でセーブ共有可能
-        </p>
-        <p v-if="errorMsg" class="text-red-300 text-sm mt-3 panel p-3 inline-block">{{ errorMsg }}</p>
+      <!-- Footer marquee -->
+      <div class="title-footer">
+        <span>© 2026 APARTMENT BISHOUJO PROJECT</span>
+        <span class="dot">·</span>
+        <span>50 CHARACTERS</span>
+        <span class="dot">·</span>
+        <span>5 CHAPTERS</span>
+        <span class="dot">·</span>
+        <span>POWERED BY VUE 3</span>
       </div>
-    </div>
-
-    <!-- Footer -->
-    <div class="absolute bottom-4 text-xs text-white/30 tracking-widest text-center z-10">
-      <span class="font-tech">© 2026 APARTMENT BISHOUJO PROJECT</span>
-      <span class="mx-3">·</span>
-      <span>キャラクター画像は順次更新</span>
-    </div>
+    </main>
   </div>
 </template>
 
 <style scoped>
 .title-root {
-  perspective: 1200px;
+  min-height: 100vh;
+  width: 100%;
+  position: relative;
+  overflow: hidden;
+  color: white;
+  display: flex; align-items: center; justify-content: center;
+  padding: 1.5rem;
 }
 
-.title-emblem {
-  width: 96px; height: 96px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 30% 30%, #fff4ec 0%, #ff9bbf 40%, #c34dff 100%);
-  display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 0 32px rgba(255, 107, 157, 0.8), 0 0 64px rgba(195, 77, 255, 0.5), 0 8px 32px rgba(0,0,0,0.5), 0 0 0 4px rgba(255,255,255,0.2) inset;
-  animation: emblem-pulse 3s ease-in-out infinite;
+/* Light beams */
+.title-beams {
+  position: absolute; inset: 0; pointer-events: none;
+  overflow: hidden;
 }
-.title-emblem-inner {
-  width: 80px; height: 80px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #ff6b9d, #c34dff);
-  display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 4px 16px rgba(255, 107, 157, 0.6) inset, 0 0 24px rgba(255, 107, 157, 0.5);
-  filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.4));
+.beam {
+  position: absolute;
+  top: -20%;
+  width: 280px;
+  height: 140%;
+  background: linear-gradient(to bottom, transparent, rgba(255,107,157,0.18), transparent);
+  filter: blur(40px);
+  transform: rotate(15deg);
+  animation: beam-sweep 12s linear infinite;
 }
-@keyframes emblem-pulse {
-  0%, 100% { transform: scale(1); filter: brightness(1); }
-  50% { transform: scale(1.06); filter: brightness(1.15); }
+.beam-1 { left: 15%; animation-delay: 0s; }
+.beam-2 { left: 50%; animation-delay: -4s; background: linear-gradient(to bottom, transparent, rgba(157,107,255,0.18), transparent); }
+.beam-3 { left: 80%; animation-delay: -8s; background: linear-gradient(to bottom, transparent, rgba(255,180,107,0.14), transparent); }
+@keyframes beam-sweep {
+  0% { transform: rotate(15deg) translateY(-10%); }
+  100% { transform: rotate(15deg) translateY(10%); }
 }
 
+/* Decorative shapes */
+.title-decor {
+  position: absolute; inset: 0; pointer-events: none;
+}
+.decor {
+  position: absolute;
+  font-size: 1.5rem;
+  color: rgba(255, 200, 230, 0.3);
+  filter: drop-shadow(0 0 8px rgba(255, 107, 157, 0.5));
+  animation: decor-float 8s ease-in-out infinite;
+}
+.decor-1 { top: 15%; left: 8%;  animation-delay: 0s; }
+.decor-2 { top: 25%; right: 12%; animation-delay: -1.5s; }
+.decor-3 { top: 70%; left: 6%;   animation-delay: -3s; font-size: 1.2rem; }
+.decor-4 { top: 60%; right: 8%;  animation-delay: -4.5s; font-size: 1.8rem; }
+.decor-5 { top: 80%; left: 50%;  animation-delay: -6s; font-size: 0.9rem; }
+.decor-6 { top: 10%; left: 50%;  animation-delay: -2s; }
+@keyframes decor-float {
+  0%, 100% { transform: translateY(0) rotate(0deg); opacity: 0.3; }
+  50% { transform: translateY(-20px) rotate(20deg); opacity: 0.7; }
+}
+
+/* Main content */
 .title-main {
-  line-height: 0.95;
-  filter: drop-shadow(0 4px 20px rgba(0,0,0,0.6));
+  position: relative; z-index: 10;
+  max-width: 760px; width: 100%;
+  padding: 3rem 2rem;
+  text-align: center;
 }
-.title-main-grad {
-  background: linear-gradient(180deg, #fff8ff 0%, #ffe4f0 30%, #ffacd0 60%, #ff6b9d 100%);
+
+/* Side bars */
+.title-bar-left, .title-bar-right {
+  position: absolute;
+  top: 50%; transform: translateY(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 0.75rem;
+  opacity: 0.7;
+}
+.title-bar-left { left: -1.5rem; }
+.title-bar-right { right: -1.5rem; }
+.title-bar-deco {
+  width: 1px;
+  height: 80px;
+  background: linear-gradient(to bottom, transparent, rgba(255,255,255,0.4), transparent);
+}
+.title-bar-label {
+  font-family: 'Orbitron', monospace;
+  font-size: 9px;
+  letter-spacing: 0.3em;
+  color: rgba(255, 200, 230, 0.7);
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+}
+@media (max-width: 768px) {
+  .title-bar-left, .title-bar-right { display: none; }
+}
+
+.title-stage {
+  display: flex; flex-direction: column; align-items: center; gap: 1.4rem;
+  animation: stage-in 1s cubic-bezier(.2,.9,.3,1.2) backwards;
+}
+@keyframes stage-in {
+  from { opacity: 0; transform: translateY(30px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Tagline */
+.title-tagline {
+  display: flex; align-items: center; gap: 0.85rem;
+  width: 100%; max-width: 460px;
+}
+.title-tagline .line {
+  flex: 1; height: 1px;
+  background: linear-gradient(to right, transparent, rgba(255, 200, 230, 0.5), transparent);
+}
+.tagline-text {
+  font-family: 'Orbitron', monospace;
+  font-size: 11px;
+  letter-spacing: 0.4em;
+  color: rgba(255, 200, 230, 0.85);
+  text-shadow: 0 0 12px rgba(255, 107, 157, 0.6);
+}
+
+/* Main title */
+.title-h1 {
+  margin: 0;
+  line-height: 0.9;
+  letter-spacing: 0.04em;
+  filter: drop-shadow(0 4px 24px rgba(0,0,0,0.7)) drop-shadow(0 0 28px rgba(255, 107, 157, 0.4));
+}
+.title-h1-row {
+  display: block;
+  font-family: 'Noto Sans JP', sans-serif;
+  font-weight: 900;
+  font-size: clamp(56px, 11vw, 96px);
+}
+.title-h1-row-1 {
+  background: linear-gradient(180deg, #ffffff 0%, #ffe4f0 60%, #ffacd0 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
-  filter: drop-shadow(0 0 24px rgba(255, 107, 157, 0.7));
+}
+.title-h1-row-2 {
+  background: linear-gradient(180deg, #ffd6a8 0%, #ff6b9d 50%, #c34dff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
-.title-rays {
-  width: 800px; height: 800px;
-  background: conic-gradient(from 0deg, transparent 0deg, rgba(255, 107, 157, 0.12) 10deg, transparent 30deg, rgba(195, 77, 255, 0.1) 40deg, transparent 60deg, rgba(255, 107, 157, 0.12) 100deg, transparent 130deg, rgba(195, 77, 255, 0.08) 160deg, transparent 200deg, rgba(255, 107, 157, 0.1) 230deg, transparent 260deg, rgba(195, 77, 255, 0.12) 300deg, transparent 330deg);
-  animation: rays-rotate 60s linear infinite;
-  filter: blur(20px);
-  opacity: 0.7;
+/* Subtitle */
+.title-sub {
+  display: flex; align-items: center; justify-content: center; gap: 0.5rem;
+  margin-top: -0.3rem;
 }
-@keyframes rays-rotate {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+.sub-bracket {
+  color: rgba(255, 107, 157, 0.7);
+  font-size: 1.2rem;
+}
+.sub-text {
+  font-family: 'Orbitron', monospace;
+  font-size: 11px;
+  letter-spacing: 0.4em;
+  color: rgba(255, 220, 240, 0.7);
 }
 
-.title-container {
-  animation: title-rise 1.2s cubic-bezier(.2,.9,.3,1.2) backwards;
+.title-flavor {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.9rem;
+  line-height: 1.85;
+  max-width: 460px;
+  margin: 0;
 }
-@keyframes title-rise {
-  from { opacity: 0; transform: translateY(40px) scale(0.95); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+
+/* Buttons */
+.title-actions {
+  display: flex; flex-direction: column; gap: 0.6rem; align-items: center;
+  width: 100%; max-width: 340px;
+  margin-top: 0.5rem;
 }
+.action-btn {
+  position: relative;
+  display: flex; align-items: center; justify-content: center; gap: 0.65rem;
+  width: 100%;
+  padding: 0.9rem 1.25rem;
+  border-radius: 4px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  transition: all 0.25s ease;
+  overflow: hidden;
+  border: 1px solid transparent;
+  /* Octagonal cut corners */
+  clip-path: polygon(8px 0, calc(100% - 8px) 0, 100% 8px, 100% calc(100% - 8px), calc(100% - 8px) 100%, 8px 100%, 0 calc(100% - 8px), 0 8px);
+}
+.action-btn--primary {
+  background: linear-gradient(135deg, #ff6b9d 0%, #c34dff 100%);
+  color: white;
+  box-shadow: 0 6px 24px rgba(255, 107, 157, 0.5), 0 1px 0 rgba(255,255,255,0.3) inset;
+}
+.action-btn--primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 32px rgba(255, 107, 157, 0.7), 0 1px 0 rgba(255,255,255,0.4) inset;
+  filter: brightness(1.1);
+}
+.action-btn-glow {
+  position: absolute;
+  top: 50%; left: -100%;
+  width: 100%; height: 200%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+  transform: translateY(-50%) rotate(15deg);
+  transition: left 0.6s ease;
+}
+.action-btn--primary:hover:not(:disabled) .action-btn-glow { left: 200%; }
+.action-btn--secondary {
+  background: linear-gradient(135deg, rgba(31, 21, 56, 0.85), rgba(42, 28, 74, 0.85));
+  backdrop-filter: blur(12px);
+  border-color: rgba(255, 200, 230, 0.3);
+  color: rgba(255, 220, 240, 0.95);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+}
+.action-btn--secondary:hover:not(:disabled) {
+  border-color: rgba(255, 107, 157, 0.6);
+  background: linear-gradient(135deg, rgba(48, 32, 80, 0.85), rgba(60, 40, 100, 0.85));
+}
+.action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.title-status {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  font-family: 'Orbitron', monospace;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: rgba(255, 220, 240, 0.55);
+  margin-top: 0.3rem;
+}
+
+.title-error {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  padding: 0.5rem 0.85rem;
+  background: rgba(225, 29, 72, 0.2);
+  border: 1px solid rgba(251, 113, 133, 0.4);
+  border-radius: 4px;
+  font-size: 0.85rem;
+  color: #fca5a5;
+}
+
+/* Footer marquee */
+.title-footer {
+  position: absolute; bottom: 1.5rem; left: 50%;
+  transform: translateX(-50%);
+  display: flex; gap: 0.85rem; align-items: center;
+  font-family: 'Orbitron', monospace;
+  font-size: 9px;
+  letter-spacing: 0.25em;
+  color: rgba(255, 220, 240, 0.35);
+  white-space: nowrap;
+}
+.title-footer .dot { color: rgba(255, 107, 157, 0.6); }
 </style>

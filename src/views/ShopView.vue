@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import { useRouter } from "vue-router";
 import { usePlayerStore } from "../stores/player";
 import { ITEMS } from "../game/data/items";
 import AnimatedBackground from "../components/AnimatedBackground.vue";
+import Icon from "../components/Icon.vue";
 
 const player = usePlayerStore();
+const router = useRouter();
 const message = ref<{ text: string; ok: boolean } | null>(null);
 
 const sellable = computed(() => Object.values(ITEMS).filter(i => i.price && i.price > 0));
@@ -15,54 +18,72 @@ function buy(itemId: string) {
   if (player.spendGold(item.price)) {
     player.addItem(itemId, 1);
     player.persist();
-    message.value = { text: `${item.name} を購入しました！`, ok: true };
+    message.value = { text: `${item.name} を購入しました`, ok: true };
   } else {
-    message.value = { text: "所持金が足りません！", ok: false };
+    message.value = { text: "所持金が足りません", ok: false };
   }
   setTimeout(() => { message.value = null; }, 2500);
 }
 
 const itemIcon: Record<string, string> = {
-  rent_card: "📄", premium_card: "✨", luxury_card: "💎", master_card: "🗝️",
-  potion_s: "🧪", potion_m: "🧪", potion_l: "🧪", ether_s: "💧",
+  rent_card: "scroll", premium_card: "scroll", luxury_card: "scroll", master_card: "key",
+  potion_s: "flask", potion_m: "flask", potion_l: "flask", ether_s: "flask",
+};
+const itemTier: Record<string, "common" | "rare" | "epic" | "legendary"> = {
+  rent_card: "common", premium_card: "rare", luxury_card: "epic", master_card: "legendary",
+  potion_s: "common", potion_m: "rare", potion_l: "epic", ether_s: "common",
 };
 </script>
 
 <template>
-  <div class="shop-root min-h-screen text-white">
+  <div class="shop-root">
     <AnimatedBackground variant="cosmic" intensity="normal" />
 
     <header class="shop-header">
-      <button class="btn-secondary text-sm" @click="$router.push({ name: 'home' })">← ホームへ</button>
-      <h2 class="text-xl font-bold text-game-shadow">ショップ</h2>
-      <div class="gold-badge">
-        <span class="text-lg">💰</span>
-        <div>
-          <div class="text-[9px] text-white/60 font-tech tracking-wider">GOLD</div>
-          <div class="font-bold tabular-nums">{{ player.save!.currency.gold.toLocaleString() }}</div>
-        </div>
+      <button class="shop-back" @click="router.push({ name: 'home' })">
+        <Icon name="arrow-back" :size="16" />
+      </button>
+      <div class="flex-1">
+        <div class="shop-eyebrow">SHOP</div>
+        <h2 class="shop-title">アイテムショップ</h2>
+      </div>
+      <div class="shop-gold">
+        <Icon name="gold" :size="20" />
+        <span>{{ player.save!.currency.gold.toLocaleString() }}</span>
+        <small>G</small>
       </div>
     </header>
 
     <main class="shop-main">
+      <div class="shop-section-row">
+        <div>
+          <div class="shop-section-eyebrow">⌘ AVAILABLE ITEMS</div>
+          <h3 class="shop-section-title">商品ラインナップ</h3>
+        </div>
+      </div>
+
       <div class="shop-grid">
-        <div v-for="i in sellable" :key="i.id" class="shop-item animate-fade-in-up">
-          <div class="shop-item-icon">{{ itemIcon[i.id] || "🎁" }}</div>
-          <div class="flex-1 min-w-0">
-            <div class="font-bold text-base">{{ i.name }}</div>
-            <div class="text-xs text-white/55 mt-0.5">{{ i.description }}</div>
-            <div class="text-[10px] text-white/40 mt-1 font-tech">OWNED: {{ player.items[i.id] ?? 0 }}</div>
+        <div v-for="i in sellable" :key="i.id" class="shop-item animate-fade-in-up" :class="`shop-item--${itemTier[i.id] || 'common'}`">
+          <div class="shop-item-icon">
+            <Icon :name="itemIcon[i.id] || 'sparkle'" :size="28" />
           </div>
-          <button class="shop-buy-btn" @click="buy(i.id)" :disabled="player.save!.currency.gold < i.price!">
-            <span class="text-xs text-white/70 font-tech">PRICE</span>
-            <span class="font-bold text-base">{{ i.price }} G</span>
+          <div class="shop-item-body">
+            <div class="shop-item-tier">{{ (itemTier[i.id] || 'common').toUpperCase() }}</div>
+            <div class="shop-item-name">{{ i.name }}</div>
+            <div class="shop-item-desc">{{ i.description }}</div>
+            <div class="shop-item-owned">所持: <b>{{ player.items[i.id] ?? 0 }}</b></div>
+          </div>
+          <button class="shop-buy" @click="buy(i.id)" :disabled="player.save!.currency.gold < i.price!">
+            <Icon name="gold" :size="16" />
+            <span>{{ i.price }}</span>
           </button>
         </div>
       </div>
 
       <transition>
         <div v-if="message" class="shop-toast" :class="message.ok ? 'shop-toast--ok' : 'shop-toast--err'">
-          {{ message.text }}
+          <Icon :name="message.ok ? 'check' : 'lock'" :size="18" />
+          <span>{{ message.text }}</span>
         </div>
       </transition>
     </main>
@@ -70,28 +91,61 @@ const itemIcon: Record<string, string> = {
 </template>
 
 <style scoped>
+.shop-root { min-height: 100vh; color: white; }
+
 .shop-header {
-  display: flex; align-items: center; gap: 1rem; justify-content: space-between;
-  padding: 0.75rem 1rem;
-  background: linear-gradient(180deg, rgba(15, 8, 30, 0.85), rgba(15, 8, 30, 0.4));
+  display: flex; align-items: center; gap: 0.85rem;
+  padding: 0.85rem 1rem;
+  background: linear-gradient(180deg, rgba(15, 8, 30, 0.95), rgba(15, 8, 30, 0.55));
   backdrop-filter: blur(10px);
-  border-bottom: 1px solid rgba(255,255,255,0.08);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   position: sticky; top: 0; z-index: 20;
 }
-.gold-badge {
-  display: flex; align-items: center; gap: 0.5rem;
-  padding: 0.4rem 0.85rem;
-  background: linear-gradient(135deg, rgba(251,191,36,0.2), rgba(245,158,11,0.12));
-  border: 1px solid rgba(251,191,36,0.4);
-  border-radius: 0.5rem;
-  box-shadow: 0 0 12px rgba(251,191,36,0.2);
+.shop-back {
+  width: 36px; height: 36px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 6px;
+  color: white;
 }
+.shop-eyebrow {
+  font-family: 'Orbitron', monospace;
+  font-size: 10px;
+  letter-spacing: 0.3em;
+  color: rgba(255, 200, 230, 0.7);
+}
+.shop-title { font-size: 1.25rem; font-weight: 800; }
+.shop-gold {
+  display: flex; align-items: center; gap: 0.4rem;
+  padding: 0.5rem 0.9rem;
+  background: linear-gradient(135deg, rgba(180,83,9,0.45), rgba(146,64,14,0.35));
+  border: 1px solid rgba(251, 191, 36, 0.6);
+  border-radius: 6px;
+  box-shadow: 0 0 14px rgba(251, 191, 36, 0.25);
+  font-family: 'Orbitron', monospace;
+  font-weight: 900;
+  font-size: 1.05rem;
+  color: #fde68a;
+  text-shadow: 0 0 8px rgba(253, 230, 138, 0.6);
+}
+.shop-gold small { font-size: 0.65rem; color: rgba(253, 230, 138, 0.7); margin-left: 1px; }
 
-.shop-main { max-width: 800px; margin: 0 auto; padding: 1.5rem 1rem; position: relative; }
+.shop-main { max-width: 900px; margin: 0 auto; padding: 1.25rem 1rem 3rem; position: relative; }
+
+.shop-section-row { margin-bottom: 0.85rem; }
+.shop-section-eyebrow {
+  font-family: 'Orbitron', monospace;
+  font-size: 10px;
+  letter-spacing: 0.3em;
+  color: rgba(255, 200, 230, 0.7);
+}
+.shop-section-title { font-size: 1.1rem; font-weight: 800; margin-top: 2px; }
+
 .shop-grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 0.6rem;
+  gap: 0.55rem;
 }
 @media (min-width: 700px) {
   .shop-grid { grid-template-columns: 1fr 1fr; }
@@ -100,46 +154,92 @@ const itemIcon: Record<string, string> = {
 .shop-item {
   display: flex; align-items: center; gap: 0.85rem;
   padding: 0.85rem 1rem;
-  background: linear-gradient(135deg, rgba(31, 21, 56, 0.9), rgba(42, 28, 74, 0.9));
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 0.75rem;
+  background: linear-gradient(135deg, rgba(31, 21, 56, 0.9), rgba(20, 12, 40, 0.9));
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  transition: all 0.25s ease;
+  position: relative;
+  overflow: hidden;
 }
+.shop-item::before {
+  content: '';
+  position: absolute; left: 0; top: 0; bottom: 0;
+  width: 3px;
+  transition: opacity 0.3s ease;
+}
+.shop-item:hover { border-color: rgba(255, 200, 230, 0.25); transform: translateY(-2px); }
+.shop-item--common::before { background: #94a3b8; }
+.shop-item--rare::before { background: #60a5fa; box-shadow: 0 0 8px #60a5fa; }
+.shop-item--epic::before { background: #c084fc; box-shadow: 0 0 8px #c084fc; }
+.shop-item--legendary::before { background: linear-gradient(180deg, #fbbf24, #f87171); box-shadow: 0 0 12px #fbbf24; }
+
 .shop-item-icon {
   width: 56px; height: 56px;
-  font-size: 2rem;
   display: flex; align-items: center; justify-content: center;
   background: linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02));
-  border-radius: 0.6rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: rgba(255, 200, 230, 0.85);
   flex-shrink: 0;
 }
-.shop-buy-btn {
-  display: flex; flex-direction: column; align-items: center;
-  padding: 0.55rem 1rem;
-  background: linear-gradient(135deg, #fbbf24, #d97706);
-  border: 1px solid rgba(253,224,71,0.5);
-  border-radius: 0.5rem;
-  color: white;
-  text-shadow: 0 1px 2px rgba(0,0,0,0.4);
-  font-family: 'M PLUS Rounded 1c', sans-serif;
-  transition: all 0.2s ease;
-  flex-shrink: 0;
-  box-shadow: 0 0 12px rgba(251,191,36,0.3);
-}
-.shop-buy-btn:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 0 24px rgba(251,191,36,0.6), 0 6px 16px rgba(0,0,0,0.4);
-  filter: brightness(1.1);
-}
-.shop-buy-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.shop-item--rare .shop-item-icon { color: #93c5fd; border-color: rgba(96, 165, 250, 0.3); }
+.shop-item--epic .shop-item-icon { color: #d8b4fe; border-color: rgba(192, 132, 252, 0.3); }
+.shop-item--legendary .shop-item-icon { color: #fde68a; border-color: rgba(251, 191, 36, 0.4); }
 
+.shop-item-body { flex: 1; min-width: 0; }
+.shop-item-tier {
+  font-family: 'Orbitron', monospace;
+  font-size: 9px;
+  letter-spacing: 0.25em;
+  color: rgba(255, 200, 230, 0.5);
+}
+.shop-item--rare .shop-item-tier { color: #93c5fd; }
+.shop-item--epic .shop-item-tier { color: #d8b4fe; }
+.shop-item--legendary .shop-item-tier { color: #fde68a; }
+.shop-item-name { font-size: 1rem; font-weight: 800; margin-top: 1px; }
+.shop-item-desc { font-size: 11.5px; color: rgba(255, 255, 255, 0.55); margin-top: 2px; }
+.shop-item-owned {
+  font-size: 11px;
+  color: rgba(255, 200, 230, 0.55);
+  margin-top: 4px;
+}
+.shop-item-owned b { color: white; font-family: 'Orbitron', monospace; }
+
+.shop-buy {
+  flex-shrink: 0;
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 0.55rem 0.85rem;
+  background: linear-gradient(135deg, #fbbf24 0%, #d97706 100%);
+  border: 1px solid rgba(253, 230, 138, 0.5);
+  border-radius: 6px;
+  color: white;
+  font-family: 'Orbitron', monospace;
+  font-weight: 900;
+  font-size: 1rem;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.4);
+  box-shadow: 0 0 14px rgba(251, 191, 36, 0.3), 0 4px 12px rgba(0,0,0,0.4);
+  transition: all 0.2s ease;
+  /* octagonal */
+  clip-path: polygon(5px 0, calc(100% - 5px) 0, 100% 5px, 100% calc(100% - 5px), calc(100% - 5px) 100%, 5px 100%, 0 calc(100% - 5px), 0 5px);
+}
+.shop-buy:hover:not(:disabled) {
+  transform: translateY(-2px);
+  filter: brightness(1.1);
+  box-shadow: 0 0 24px rgba(251, 191, 36, 0.6), 0 6px 16px rgba(0,0,0,0.4);
+}
+.shop-buy:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Toast */
 .shop-toast {
-  position: fixed; bottom: 2rem; left: 50%;
+  position: fixed; bottom: 1.5rem; left: 50%;
   transform: translateX(-50%);
-  padding: 0.75rem 1.5rem;
-  border-radius: 0.6rem;
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.7rem 1.5rem;
+  border-radius: 6px;
   font-weight: 700;
   z-index: 50;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  box-shadow: 0 12px 32px rgba(0,0,0,0.5);
   backdrop-filter: blur(8px);
 }
 .shop-toast--ok {

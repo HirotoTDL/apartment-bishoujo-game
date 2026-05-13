@@ -2,6 +2,7 @@
 import { STAGES, STAGES_BY_ID, type Stage } from "./data/stages";
 import { makeWildUnit } from "./growth";
 import type { BattleUnit } from "./types";
+import type { EncounterType } from "./battle";
 
 function weightedPick<T extends { weight: number }>(items: T[]): T {
   const total = items.reduce((a, b) => a + b.weight, 0);
@@ -28,11 +29,16 @@ export function startStage(stageId: string): StageProgress {
   };
 }
 
-export function nextEncounter(progress: StageProgress): BattleUnit[] {
+export interface EncounterResult {
+  enemies: BattleUnit[];
+  type: EncounterType;
+}
+
+export function nextEncounter(progress: StageProgress): EncounterResult {
   const stage = STAGES_BY_ID[progress.stageId];
   const isFinal = progress.battlesCompleted + 1 === progress.battlesToClear;
+  const isMidPoint = progress.battlesToClear >= 3 && progress.battlesCompleted + 1 === Math.ceil(progress.battlesToClear / 2);
 
-  // Helper: how many enemies for this chapter, capped at 4
   function scaleByChapter(min: number, max: number): number {
     const lo = Math.min(4, Math.max(1, min));
     const hi = Math.min(4, Math.max(lo, max));
@@ -41,8 +47,8 @@ export function nextEncounter(progress: StageProgress): BattleUnit[] {
 
   const enemies: BattleUnit[] = [];
 
+  // === BOSS encounter ===
   if (isFinal && stage.bossCharId && stage.bossLv) {
-    // Boss battle: boss + minions (more minions in later chapters)
     enemies.push(makeWildUnit(stage.bossCharId, stage.bossLv));
     const minionCount = Math.min(3, Math.max(0, stage.chapter - 1));
     for (let i = 0; i < minionCount; i++) {
@@ -50,11 +56,13 @@ export function nextEncounter(progress: StageProgress): BattleUnit[] {
       const lvl = Math.max(1, randInt(pick.minLv, pick.maxLv) - 2);
       enemies.push(makeWildUnit(pick.charId, lvl));
     }
-    return enemies;
+    return { enemies, type: "boss" };
   }
 
-  // Regular encounter: 1-4 enemies based on chapter progression
-  // Chapter 1: 1-2, Chapter 2: 2-3, Chapter 3+: 2-4, Chapter 4-5: 3-4
+  // === ELITE (mid-boss) — midway through a 3+ battle stage, or any SR+ roll ===
+  let isElite = false;
+
+  // Choose enemy count
   let numEnemies: number;
   if (stage.chapter === 1) numEnemies = scaleByChapter(1, 2);
   else if (stage.chapter === 2) numEnemies = scaleByChapter(2, 3);
@@ -66,7 +74,15 @@ export function nextEncounter(progress: StageProgress): BattleUnit[] {
     const lvl = randInt(pick.minLv, pick.maxLv);
     enemies.push(makeWildUnit(pick.charId, lvl));
   }
-  return enemies;
+
+  // Auto-detect elite: SR/SSR/UR rolled OR designated mid-point
+  if (enemies.some(e => e.rarity === "SR" || e.rarity === "SSR" || e.rarity === "UR")) isElite = true;
+  if (isMidPoint && stage.chapter >= 2 && !isElite) {
+    // Mid-point elite: upgrade one enemy by re-rolling with rarity cap
+    isElite = Math.random() < 0.4;
+  }
+
+  return { enemies, type: isElite ? "elite" : "trash" };
 }
 
 function randInt(a: number, b: number) {

@@ -105,12 +105,20 @@ function pushSkillFlash(unit: BattleUnit, element: string) {
 
 function buildBattle() {
   const allyUnits = player.party.map(c => toBattleUnit(c, "ally"));
-  const enemies = nextEncounter(progress.value);
+  const { enemies, type } = nextEncounter(progress.value);
   for (const e of enemies) player.seenRarity(e.rarity);
-  battle.value = createBattle(allyUnits, enemies);
+  battle.value = createBattle(allyUnits, enemies, type);
   resetPlanner();
   battleOver.value = false;
   rewardSummary.value = null;
+}
+
+// Animation pacing multipliers per encounter type
+// trash → snappy, boss → cinematic
+function pace(ms: number): number {
+  const t = battle.value?.encounterType ?? "trash";
+  const mul = t === "trash" ? 0.55 : t === "elite" ? 0.85 : 1.0;
+  return Math.max(80, Math.floor(ms * mul));
 }
 
 function resetPlanner() {
@@ -261,6 +269,7 @@ async function executeTurn() {
           rarity: m.rarity,
           role: m.role ?? "striker",
         };
+        // ULT always uses full cinematic pacing regardless of encounter type
         await wait(1900);
         ultCutin.value = null;
         await wait(120);
@@ -271,7 +280,7 @@ async function executeTurn() {
 
     if (ev.type === "broken" && ev.unit) {
       shake("shake-hard");
-      await wait(550);
+      await wait(pace(550));
       i++;
       continue;
     }
@@ -304,16 +313,16 @@ async function executeTurn() {
         element: skill?.element ?? "light",
         kind: skill?.ultimate ? "ult" : "skill",
       };
-      await wait(700);
+      await wait(pace(700));
       // Show projectile/impact for each target
       const fromPos = unitPos(actor);
       for (const s of scene) {
         if (!s.unit) continue;
         const toPos = unitPos(s.unit);
         if (fromPos && toPos) {
-          fireEffect("projectile", skill?.element ?? "light", fromPos, toPos, 380);
-          await wait(280);
-          fireEffect("impact", skill?.element ?? "light", fromPos, toPos, 550);
+          fireEffect("projectile", skill?.element ?? "light", fromPos, toPos, pace(380));
+          await wait(pace(280));
+          fireEffect("impact", skill?.element ?? "light", fromPos, toPos, pace(550));
         }
         // Damage popup + shake
         if (s.type === "damage" && s.amount && s.unit) {
@@ -324,25 +333,25 @@ async function executeTurn() {
         } else if (s.type === "heal" && s.amount && s.unit) {
           pushPopup(s.unit, s.amount, "heal");
         }
-        await wait(scene.length > 1 ? 200 : 380);
+        await wait(scene.length > 1 ? pace(200) : pace(380));
       }
       banner.value = null;
-      await wait(180);
+      await wait(pace(180));
       continue;
     }
 
     // Heal-only events (regen tick etc.) without explicit attack scene
     if (ev.type === "heal" && ev.amount && ev.unit) {
       pushPopup(ev.unit, ev.amount, "heal");
-      await wait(150);
+      await wait(pace(150));
     }
     if (ev.type === "status_tick" && ev.amount && ev.unit) {
       pushPopup(ev.unit, ev.status === "regen" ? ev.amount : -ev.amount, ev.status === "regen" ? "heal" : "physical");
-      await wait(150);
+      await wait(pace(150));
     }
     if (ev.type === "fallen" && ev.unit) {
       shake("shake");
-      await wait(280);
+      await wait(pace(280));
     }
     i++;
   }
@@ -583,7 +592,12 @@ const isWeaknessTo = (attackerElem: string, defenderElem: string) => {
     <header class="bt-header">
       <button class="bt-back" @click="exit"><Icon name="arrow-back" :size="14" /></button>
       <div class="bt-info">
-        <div class="bt-stage-id">CH.{{ stage.chapter }} · {{ stage.id }}</div>
+        <div class="bt-stage-id">
+          CH.{{ stage.chapter }} · {{ stage.id }}
+          <span class="bt-type-badge" :class="`bt-type-${battle.encounterType}`">
+            {{ battle.encounterType === 'boss' ? 'BOSS' : battle.encounterType === 'elite' ? 'ELITE' : 'ENCOUNTER' }}
+          </span>
+        </div>
         <div class="bt-stage-name">{{ stage.name }}</div>
       </div>
       <!-- Turn order preview -->
@@ -1282,8 +1296,28 @@ const isWeaknessTo = (attackerElem: string, defenderElem: string) => {
   border-radius: 5px; color: white;
 }
 .bt-info { flex: 1; min-width: 0; }
-.bt-stage-id { font-family: 'Orbitron', monospace; font-size: 9px; letter-spacing: 0.25em; color: rgba(255, 200, 230, 0.7); }
+.bt-stage-id { font-family: 'Orbitron', monospace; font-size: 9px; letter-spacing: 0.25em; color: rgba(255, 200, 230, 0.7); display: flex; align-items: center; gap: 6px; }
 .bt-stage-name { font-weight: 800; font-size: 0.92rem; }
+.bt-type-badge {
+  font-family: 'Orbitron', monospace;
+  font-size: 9px;
+  font-weight: 900;
+  padding: 2px 6px;
+  border-radius: 3px;
+  letter-spacing: 0.15em;
+  color: white;
+}
+.bt-type-trash { background: linear-gradient(135deg, #64748b, #475569); }
+.bt-type-elite { background: linear-gradient(135deg, #c084fc, #7c3aed); box-shadow: 0 0 8px rgba(192, 132, 252, 0.6); }
+.bt-type-boss {
+  background: linear-gradient(135deg, #ef4444, #be123c);
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.8);
+  animation: boss-pulse 1.5s ease-in-out infinite;
+}
+@keyframes boss-pulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(239, 68, 68, 0.6); }
+  50% { box-shadow: 0 0 14px rgba(239, 68, 68, 1); }
+}
 
 .bt-turnorder {
   display: flex; flex-direction: column; align-items: center; gap: 2px;

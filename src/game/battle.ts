@@ -47,6 +47,8 @@ export interface BattleEvent {
   isWeakness?: boolean;
 }
 
+export type EncounterType = "trash" | "elite" | "boss";
+
 export interface BattleState {
   allies: BattleUnit[];
   enemies: BattleUnit[];
@@ -56,6 +58,7 @@ export interface BattleState {
   events: BattleEvent[];           // events from last resolution (for UI animation)
   capturedUnit?: BattleUnit;
   plannedActions: Map<BattleUnit, PlannedAction>; // ally plans this turn
+  encounterType: EncounterType;    // drives HP/ATK mods + UI pacing
 }
 
 const CATCH_BASE: Record<Rarity, number> = {
@@ -65,15 +68,51 @@ const CATCH_BASE: Record<Rarity, number> = {
 const ULT_FULL = 100;
 const BREAK_FULL = 100;
 
-export function createBattle(allies: BattleUnit[], enemies: BattleUnit[]): BattleState {
+export function createBattle(allies: BattleUnit[], enemies: BattleUnit[], encounterType: EncounterType = "trash"): BattleState {
+  // Apply encounter-type modifiers to enemies before snapshotting.
+  // trash: -35% HP, normal ATK            (snappy fights)
+  // elite: +20% HP, +10% ATK             (mid-boss feel)
+  // boss : +120% HP, +20% ATK, +20% DEF   (climactic)
+  const enemyMod = (u: BattleUnit, idx: number): BattleUnit => {
+    let hpMul = 1, atkMul = 1, defMul = 1;
+    if (encounterType === "trash") { hpMul = 0.65; }
+    else if (encounterType === "elite") { hpMul = 1.20; atkMul = 1.10; }
+    else if (encounterType === "boss") {
+      // The first enemy in a boss encounter is THE boss; minions stay light
+      if (idx === 0) { hpMul = 2.20; atkMul = 1.20; defMul = 1.20; }
+      else { hpMul = 0.55; } // boss minions die fast
+    }
+    const newHpMax = Math.floor(u.hpMax * hpMul);
+    return {
+      ...u,
+      hp: newHpMax,
+      hpMax: newHpMax,
+      stats: {
+        ...u.stats,
+        atk: Math.floor(u.stats.atk * atkMul),
+        def: Math.floor(u.stats.def * defMul),
+      },
+      statuses: [],
+      cooldowns: {},
+    };
+  };
+
   return {
     allies: allies.map(u => ({ ...u, statuses: [], cooldowns: {} })),
-    enemies: enemies.map(u => ({ ...u, statuses: [], cooldowns: {} })),
+    enemies: enemies.map(enemyMod),
     turn: 1,
     phase: "planning",
-    log: [{ text: `▶ 戦闘開始！ vs ${enemies.map(e => e.name).join(", ")}`, kind: "info" }],
+    log: [{
+      text: encounterType === "boss"
+        ? `▶ BOSS BATTLE! vs ${enemies.map(e => e.name).join(", ")}`
+        : encounterType === "elite"
+        ? `▶ ELITE戦！ vs ${enemies.map(e => e.name).join(", ")}`
+        : `▶ 戦闘開始！ vs ${enemies.map(e => e.name).join(", ")}`,
+      kind: "info",
+    }],
     events: [],
     plannedActions: new Map(),
+    encounterType,
   };
 }
 

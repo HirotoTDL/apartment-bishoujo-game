@@ -18,13 +18,76 @@ Every character must have one canonical identity sheet before generating many
 variants. The identity sheet is the source of truth for:
 
 - Face shape, eye color, hairstyle, hair length, and signature expression.
-- Body type and silhouette.
+- Apparent age band, height, body type, and silhouette.
 - Costume motifs, key colors, accessories, and held item.
 - Element, rarity, apartment-source theme, and personality.
 - Forbidden overlaps with other characters.
 
 When generating a new pose or expression, preserve identity first and vary only
 the requested pose, expression, stage, or damage state.
+
+## Body And Age Variation Rule
+
+Do not let the roster collapse into same-height, same-age, same-body portraits.
+Every character prompt must explicitly choose a body/age profile.
+
+Allowed adult age impressions:
+
+- Fresh adult: clearly 18+, youthful and bright, smaller frame.
+- College-age adult: early 20s feel, balanced and approachable.
+- Mature young adult: mid-20s feel, composed, elegant, or glamorous.
+- Tall mature beauty: statuesque, long limbs, premium presence.
+
+Height bands:
+
+- Petite: short, compact silhouette, energetic or cute.
+- Average: standard heroine height.
+- Tall: long legs, elegant or athletic presence.
+- Statuesque: striking premium-card silhouette, mostly for SR/SSR/UR or mature
+  glamorous characters.
+
+Body types:
+
+- Slender and delicate.
+- Soft and curvy.
+- Athletic and toned.
+- Tall and willowy.
+- Sturdy and protective.
+- Voluptuous adult glamour.
+
+Rules:
+
+- All characters must still be clearly adult when the outfit has medium or high
+  exposure.
+- Revealing outfits must not be paired with childlike proportions.
+- Adjacent characters in the generation order should not reuse the same height
+  band, body type, and pose language.
+- The prompt must contain one line like:
+  `Body profile: mature young adult, tall, soft curvy build, confident posture.`
+
+## Pose Language Rule
+
+Avoid the same front-facing neutral stance for everyone. Full-body standing art
+is still required, but pose language must vary.
+
+Pose families:
+
+- Formal: curtsy, prayer, dignified staff hold, composed standing.
+- Action-ready: weapon angled across body, athletic stance, forward step.
+- Playful: hand near cheek, wink-like expression, tilted hip, lively gesture.
+- Elegant glamour: one hand on hip, lifted chin, flowing fabric, dancer line.
+- Gentle domestic: basket, tray, book, flowers, hands clasped, soft posture.
+- Sporty: racket, running step, hands on hips, active weight shift.
+- Mystic: staff, book, bell, veil, ritual hand gesture.
+- Reserved: closed posture, shy smile, small item held close.
+
+Rules:
+
+- The prompt must name a pose family.
+- The character should remain usable as a game portrait: full body, readable,
+  no extreme foreshortening, no cropped limbs.
+- At least one of head tilt, hip angle, leg stance, arm gesture, or held item
+  direction should differ from the previous character.
 
 ## Stage Progression Rule
 
@@ -129,14 +192,46 @@ Use one art lane per character or small group:
 - Floral watercolor: soft edges, flower motifs, translucent fabric accents.
 - Glamorous social-game: adult proportions, confident pose, tasteful sex appeal.
 - Retro shoujo: long eyelashes, decorative hair, romantic costume silhouette.
+- Sharp modern gacha: angular eyes, crisp highlights, high-contrast materials.
+- Soft moe-card: rounder features, warm blush, lighter line pressure.
+- Fashion-magazine anime: taller body, stylish clothing folds, confident gaze.
+- Fantasy painterly: richer gradients, softer shadows, more ornate accessories.
 
 Rules:
 
 - Preserve the character identity and world first.
 - Do not copy a named living artist or a specific copyrighted franchise style.
-- Vary line thickness, face proportions, shading density, costume detail, and
-  color treatment enough that adjacent characters feel like different cards.
-- Record the intended art lane in the generation prompt.
+- Vary at least four of these per character: line thickness, face proportions,
+  eye shape, body proportions, shading density, color temperature, highlight
+  style, costume detail density, fabric rendering, and accessory design.
+- Record the intended art lane in the generation prompt with a line like:
+  `Art lane: fashion-magazine anime, tall proportions, crisp highlights, stylish
+  clothing folds.`
+- Do not use the same art lane for more than two consecutive characters.
+- UR/SSR should use premium variants of their art lanes. N/R should be simpler,
+  but still distinct.
+
+## Prompt Design Checklist
+
+Before generating any character, write the prompt so it includes these explicit
+fields:
+
+- `Art lane`
+- `Body profile`
+- `Exposure level`
+- `Pose family`
+- `Uniqueness guard`
+
+Example:
+
+```text
+Art lane: sharp modern gacha, angular eyes, crisp hair highlights, high contrast.
+Body profile: mature young adult, tall, athletic and toned, long legs.
+Exposure level: medium, bare shoulders and legs, no nudity or underwear focus.
+Pose family: action-ready, one foot forward, weapon angled diagonally.
+Uniqueness guard: avoid the soft pastel starter look, avoid prayer pose, avoid
+same-height neutral standing silhouette.
+```
 
 ## Rarity Impact Rule
 

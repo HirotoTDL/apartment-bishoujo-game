@@ -6,7 +6,9 @@
 //  add visual + small stat multiplier at Lv25 and Lv50.
 // =====================================================================
 
-import type { Element, SkillId } from "./skills";
+import type { Element, SkillId, Role } from "./skills";
+import { ROLE_STAT_MUL } from "./skills";
+import { ROLE_ASSIGNMENTS, getLearnsetFor } from "./characterRoles";
 
 export type Rarity = "N" | "R" | "SR" | "SSR" | "UR";
 
@@ -40,7 +42,15 @@ export interface CharacterMaster {
   encounterWeight: number;    // higher = appears more often
   lore: string;
   tags: string[];             // for sorting/dex filtering
+  // Combat role + ult: populated at module load from characterRoles map.
+  // Optional in source declarations to avoid touching all 50 entries.
+  role?: Role;
+  ultId?: SkillId;
 }
+
+// After assignment runs, callers can rely on role/ultId being defined.
+// We expose a non-null accessor for convenience.
+export type AssignedCharacter = CharacterMaster & { role: Role; ultId: SkillId };
 
 // Stat baseline by rarity (sum total target)
 const BASE_TOTAL: Record<Rarity, number> = {
@@ -1293,6 +1303,39 @@ export const CHARACTERS: CharacterMaster[] = [
     tags: ["パーク系", "夏", "水"],
   },
 ];
+
+// =====================================================================
+//  Apply Role Assignments
+// =====================================================================
+//  Patch each character with role, ultimate id, and a role-derived
+//  learnset. Also re-normalize baseStats according to role profile
+//  (role-tilted distribution) while preserving the rarity total.
+// =====================================================================
+
+for (const c of CHARACTERS) {
+  const a = ROLE_ASSIGNMENTS[c.id];
+  if (a) {
+    (c as any).role = a.role;
+    (c as any).ultId = a.ultId;
+    // Role-driven learnset (replaces hand-authored learnsets)
+    c.skillLearnset = getLearnsetFor(c.id, c.element);
+    // Re-tilt baseStats by role profile while preserving original totals
+    const total = c.baseStats.hp / 2.4 + c.baseStats.atk + c.baseStats.def + c.baseStats.mag + c.baseStats.spd;
+    const m = ROLE_STAT_MUL[a.role];
+    const mSum = m.hp + m.atk + m.def + m.mag + m.spd;
+    c.baseStats = {
+      hp: Math.round(total * m.hp / mSum * 2.4),
+      atk: Math.round(total * m.atk / mSum),
+      def: Math.round(total * m.def / mSum),
+      mag: Math.round(total * m.mag / mSum),
+      spd: Math.round(total * m.spd / mSum),
+    };
+  } else {
+    // Defensive defaults if a char isn't in the assignment table
+    (c as any).role = "striker";
+    (c as any).ultId = "s_strike";
+  }
+}
 
 // =====================================================================
 //  Indexes

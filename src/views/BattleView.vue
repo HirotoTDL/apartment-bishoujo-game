@@ -17,6 +17,7 @@ import { portraitForChar } from "../assets/placeholder";
 import ScenicBackground from "../components/ScenicBackground.vue";
 import Icon from "../components/Icon.vue";
 import RarityStars from "../components/RarityStars.vue";
+import BattleEffect from "../components/BattleEffect.vue";
 import type { BattleUnit } from "../game/types";
 
 const props = defineProps<{ stageId: string }>();
@@ -38,12 +39,52 @@ const showItemMenu = ref(false);
 // Animation overlays
 const screenShake = ref<"" | "shake" | "shake-hard">("");
 const flashOverlay = ref<{ color: string } | null>(null);
-const banner = ref<{ text: string; sub?: string; kind: "skill" | "ult" } | null>(null);
+const banner = ref<{ attacker: string; skill: string; targets: string; element: string; kind: "skill" | "ult" } | null>(null);
+const ultCutin = ref<{ name: string; skill: string; portrait: string } | null>(null);
 const popups = reactive<Array<{ id: number; unit: BattleUnit; value: number; kind: string; crit: boolean }>>([]);
 let popupId = 0;
 const skillFlashes = reactive<Array<{ id: number; unit: BattleUnit; element: string }>>([]);
 let flashId = 0;
+const effects = reactive<Array<{
+  id: number;
+  kind: "projectile" | "impact";
+  element: string;
+  fromX: number; fromY: number;
+  toX: number; toY: number;
+  duration: number;
+}>>([]);
+let effectId = 0;
 const animating = ref(false);
+
+// Unit DOM refs for effect targeting (BattleUnit -> HTMLElement)
+const unitRefs = new Map<BattleUnit, HTMLElement>();
+const battleRootEl = ref<HTMLElement | null>(null);
+function setUnitRef(unit: BattleUnit, el: any) {
+  if (el && el instanceof HTMLElement) unitRefs.set(unit, el);
+  else unitRefs.delete(unit);
+}
+function unitPos(unit: BattleUnit): { x: number; y: number } | null {
+  const el = unitRefs.get(unit);
+  const root = battleRootEl.value;
+  if (!el || !root) return null;
+  const er = el.getBoundingClientRect();
+  const rr = root.getBoundingClientRect();
+  const scaleStr = getComputedStyle(document.documentElement).getPropertyValue("--ui-scale").trim() || "1";
+  const scale = Number(scaleStr) || 1;
+  return {
+    x: (er.left + er.width / 2 - rr.left) / scale,
+    y: (er.top + er.height / 2 - rr.top) / scale,
+  };
+}
+function wait(ms: number) { return new Promise(r => setTimeout(r, ms)); }
+function fireEffect(kind: "projectile" | "impact", element: string, from: {x:number;y:number}, to: {x:number;y:number}, duration: number) {
+  const id = ++effectId;
+  effects.push({ id, kind, element, fromX: from.x, fromY: from.y, toX: to.x, toY: to.y, duration });
+  setTimeout(() => {
+    const i = effects.findIndex(e => e.id === id);
+    if (i >= 0) effects.splice(i, 1);
+  }, duration + 80);
+}
 
 const stage = computed(() => STAGES_BY_ID[props.stageId]);
 
@@ -199,30 +240,109 @@ async function executeTurn() {
   animating.value = true;
   planEnemies(battle.value);
   const events = resolveTurn(battle.value);
-  // Replay events visually
-  for (const ev of events) {
-    if (!ev.unit) continue;
-    if (ev.type === "damage" && ev.amount) {
-      const skill = ev.skillId ? SKILLS[ev.skillId] : null;
-      const kind = skill?.element ?? "physical";
-      pushPopup(ev.unit, -ev.amount, kind, ev.isCritical ?? false);
-      if (skill && (skill.kind === "attack" || skill.kind === "ult")) {
-        pushSkillFlash(ev.unit, skill.element);
-        flash({ fire: "#ff6b47", water: "#3aa8ff", wood: "#42d977", light: "#ffe066", dark: "#9c6cff" }[skill.element] ?? "#fff");
-      }
-      if (ev.amount > 80) shake("shake-hard"); else shake("shake");
-    }
-    if (ev.type === "heal" && ev.amount) {
-      pushPopup(ev.unit, ev.amount, "heal");
-    }
-    if (ev.type === "status_tick" && ev.amount) {
-      pushPopup(ev.unit, ev.status === "regen" ? ev.amount : -ev.amount, ev.status === "regen" ? "heal" : "physical");
-    }
+
+  // Group events by acting unit + skill for cinematic pacing
+  // (each contiguous run of events from the same actor with the same skillId
+  // is one "attack scene")
+  let i = 0;
+  while (i < events.length) {
+    const ev = events[i];
+
+    // Standalone events: ult_used (cut-in), broken, fallen, status_applied
     if (ev.type === "ult_used" && ev.actor && ev.skillId) {
       const sk = SKILLS[ev.skillId];
-      if (sk) showBanner(`★ ${ev.actor.name}`, sk.name, "ult");
+      const m = ev.actor.charId ? CHARACTERS_BY_ID[ev.actor.charId] : null;
+      if (sk && m) {
+        ultCutin.value = {
+          name: ev.actor.name,
+          skill: sk.name,
+          portrait: portraitForChar(m.id, m.name, m.rarity, m.element, ev.actor.stage, "battle"),
+        };
+        await wait(1100);
+        ultCutin.value = null;
+      }
+      i++;
+      continue;
     }
+
+    if (ev.type === "broken" && ev.unit) {
+      shake("shake-hard");
+      await wait(550);
+      i++;
+      continue;
+    }
+
+    // Find the run of contiguous attack/heal events from the same actor/skill
+    if ((ev.type === "damage" || ev.type === "heal") && ev.actor && ev.skillId) {
+      const actor = ev.actor;
+      const skillId = ev.skillId;
+      const skill = SKILLS[skillId];
+      // Collect all events that belong to this actor's current skill
+      const scene: typeof events = [];
+      let j = i;
+      while (j < events.length) {
+        const e = events[j];
+        if ((e.type === "damage" || e.type === "heal") && e.actor === actor && e.skillId === skillId) {
+          scene.push(e);
+          j++;
+        } else break;
+      }
+      i = j;
+      // Show the attack banner
+      const targetNames = scene.map(s => s.unit?.name).filter(Boolean);
+      const tStr = targetNames.length > 2
+        ? `${targetNames[0]} 他 ${targetNames.length - 1}体`
+        : targetNames.join(", ");
+      banner.value = {
+        attacker: actor.name,
+        skill: skill?.name ?? "攻撃",
+        targets: tStr,
+        element: skill?.element ?? "light",
+        kind: skill?.ultimate ? "ult" : "skill",
+      };
+      await wait(700);
+      // Show projectile/impact for each target
+      const fromPos = unitPos(actor);
+      for (const s of scene) {
+        if (!s.unit) continue;
+        const toPos = unitPos(s.unit);
+        if (fromPos && toPos) {
+          fireEffect("projectile", skill?.element ?? "light", fromPos, toPos, 380);
+          await wait(280);
+          fireEffect("impact", skill?.element ?? "light", fromPos, toPos, 550);
+        }
+        // Damage popup + shake
+        if (s.type === "damage" && s.amount && s.unit) {
+          pushPopup(s.unit, -s.amount, skill?.element ?? "physical", s.isCritical ?? false);
+          pushSkillFlash(s.unit, skill?.element ?? "light");
+          if (s.amount > 100 || s.isCritical) shake("shake-hard"); else shake("shake");
+          flash(({ fire: "#ff6b47", water: "#3aa8ff", wood: "#42d977", light: "#ffe066", dark: "#9c6cff" } as any)[skill?.element ?? "light"] ?? "#fff");
+        } else if (s.type === "heal" && s.amount && s.unit) {
+          pushPopup(s.unit, s.amount, "heal");
+        }
+        await wait(scene.length > 1 ? 200 : 380);
+      }
+      banner.value = null;
+      await wait(180);
+      continue;
+    }
+
+    // Heal-only events (regen tick etc.) without explicit attack scene
+    if (ev.type === "heal" && ev.amount && ev.unit) {
+      pushPopup(ev.unit, ev.amount, "heal");
+      await wait(150);
+    }
+    if (ev.type === "status_tick" && ev.amount && ev.unit) {
+      pushPopup(ev.unit, ev.status === "regen" ? ev.amount : -ev.amount, ev.status === "regen" ? "heal" : "physical");
+      await wait(150);
+    }
+    if (ev.type === "fallen" && ev.unit) {
+      shake("shake");
+      await wait(280);
+    }
+    i++;
   }
+
   await nextTick();
   scrollLog();
   if (battle.value.phase === "end_victory") handleVictory();
@@ -238,10 +358,6 @@ function shake(intensity: "shake" | "shake-hard" = "shake") {
 function flash(color: string) {
   flashOverlay.value = { color };
   setTimeout(() => { flashOverlay.value = null; }, 300);
-}
-function showBanner(text: string, sub: string | undefined, kind: "skill" | "ult") {
-  banner.value = { text, sub, kind };
-  setTimeout(() => { banner.value = null; }, 1400);
 }
 
 async function confirmCapture(itemId: string) {
@@ -369,19 +485,53 @@ const isWeaknessTo = (attackerElem: string, defenderElem: string) => {
 </script>
 
 <template>
-  <div v-if="battle" class="bt-root" :class="{ 'animate-shake': screenShake === 'shake', 'animate-shake-hard': screenShake === 'shake-hard' }">
+  <div v-if="battle" ref="battleRootEl" class="bt-root" :class="{ 'animate-shake': screenShake === 'shake', 'animate-shake-hard': screenShake === 'shake-hard' }">
     <ScenicBackground scene="arena" />
 
     <div v-if="flashOverlay" class="bt-flash" :style="{ background: flashOverlay.color }"></div>
 
-    <!-- Skill banner overlay -->
+    <!-- Skill banner — attacker → target overlay -->
     <transition name="banner">
-      <div v-if="banner" class="bt-banner" :class="`bt-banner-${banner.kind}`">
-        <div class="bt-banner-eyebrow">{{ banner.kind === 'ult' ? 'ULTIMATE' : 'SKILL' }}</div>
-        <div class="bt-banner-text">{{ banner.text }}</div>
-        <div v-if="banner.sub" class="bt-banner-sub">{{ banner.sub }}</div>
+      <div v-if="banner" class="bt-banner" :class="[`bt-banner-${banner.kind}`, `bt-banner-${banner.element}`]">
+        <div class="bt-banner-row">
+          <span class="bt-banner-attacker">{{ banner.attacker }}</span>
+          <span class="bt-banner-arrow">▶</span>
+          <span class="bt-banner-skill">{{ banner.skill }}</span>
+          <span class="bt-banner-arrow">▶</span>
+          <span class="bt-banner-target">{{ banner.targets }}</span>
+        </div>
       </div>
     </transition>
+
+    <!-- ULT cut-in overlay -->
+    <transition name="cutin">
+      <div v-if="ultCutin" class="bt-cutin">
+        <div class="cutin-bg"></div>
+        <div class="cutin-stripes">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="cutin-content">
+          <img :src="ultCutin.portrait" class="cutin-portrait" />
+          <div class="cutin-text">
+            <div class="cutin-eye">ULTIMATE SKILL</div>
+            <div class="cutin-name">{{ ultCutin.name }}</div>
+            <div class="cutin-skill">{{ ultCutin.skill }}</div>
+          </div>
+        </div>
+      </div>
+    </transition>
+
+    <!-- Effect layer (projectiles, impacts) -->
+    <div class="bt-fx-layer">
+      <BattleEffect
+        v-for="e in effects" :key="e.id"
+        :kind="e.kind"
+        :element="e.element as any"
+        :from-x="e.fromX" :from-y="e.fromY"
+        :to-x="e.toX" :to-y="e.toY"
+        :duration="e.duration"
+      />
+    </div>
 
     <!-- HEADER -->
     <header class="bt-header">
@@ -416,6 +566,7 @@ const isWeaknessTo = (attackerElem: string, defenderElem: string) => {
       <div class="unit-row">
         <button
           v-for="(e, idx) in battle.enemies" :key="idx"
+          :ref="(el) => setUnitRef(e, el)"
           class="unit"
           :class="[e.hp === 0 && 'unit--fallen', selectedTarget === e && 'unit--target', e.broken && 'unit--broken', `unit-r-${e.rarity}`]"
           @click="pickTarget(e)" :disabled="e.hp === 0 || battleOver || animating"
@@ -484,6 +635,7 @@ const isWeaknessTo = (attackerElem: string, defenderElem: string) => {
       <div class="unit-row">
         <div
           v-for="(a, idx) in battle.allies" :key="idx"
+          :ref="(el) => setUnitRef(a, el)"
           class="unit unit--ally"
           :class="[a.hp === 0 && 'unit--fallen', a === currentPlanner && 'unit--active', `unit-r-${a.rarity}`]"
         >
@@ -650,39 +802,138 @@ const isWeaknessTo = (attackerElem: string, defenderElem: string) => {
 .bt-flash { position: absolute; inset: 0; z-index: 40; pointer-events: none; mix-blend-mode: screen; animation: bt-flash 0.3s ease-out; }
 @keyframes bt-flash { 0% { opacity: 0; } 50% { opacity: 0.7; } 100% { opacity: 0; } }
 
-/* Banner */
+/* Attack banner: attacker → skill → target */
 .bt-banner {
-  position: absolute; top: 35%; left: 0; right: 0;
-  display: flex; flex-direction: column; align-items: center;
+  position: absolute; top: 38%; left: 50%; transform: translate(-50%, -50%);
   z-index: 35; pointer-events: none;
-  text-align: center;
+  padding: 8px 22px;
+  background: linear-gradient(90deg, rgba(0,0,0,0.0) 0%, rgba(0,0,0,0.85) 20%, rgba(0,0,0,0.85) 80%, rgba(0,0,0,0.0) 100%);
+  border-top: 1px solid var(--banner-c, #ff6b9d);
+  border-bottom: 1px solid var(--banner-c, #ff6b9d);
+  filter: drop-shadow(0 0 18px var(--banner-c, #ff6b9d));
 }
-.bt-banner-eyebrow {
-  font-family: 'Orbitron', monospace;
-  font-size: 11px; letter-spacing: 0.4em;
-  color: rgba(255, 200, 230, 0.8);
+.bt-banner-row {
+  display: flex; align-items: center; gap: 12px;
+  font-family: 'M PLUS Rounded 1c', sans-serif;
+  white-space: nowrap;
 }
-.bt-banner-text {
+.bt-banner-attacker, .bt-banner-target {
+  font-weight: 900; font-size: 1.05rem;
+  color: white; text-shadow: 0 1px 2px rgba(0,0,0,0.7), 0 0 12px var(--banner-c, #ff6b9d);
+}
+.bt-banner-skill {
   font-family: 'Noto Sans JP', sans-serif;
   font-weight: 900;
-  font-size: 2.2rem;
-  background: linear-gradient(180deg, #ffffff, #ff6b9d, #c34dff);
+  font-size: 1.6rem;
+  background: linear-gradient(180deg, #ffffff 40%, var(--banner-c, #ff6b9d));
   -webkit-background-clip: text; background-clip: text;
   -webkit-text-fill-color: transparent;
-  filter: drop-shadow(0 4px 18px rgba(255, 107, 157, 0.5));
+  letter-spacing: 0.03em;
 }
-.bt-banner-sub {
-  font-size: 1.2rem; font-weight: 800; color: white;
-  text-shadow: 0 0 12px rgba(255, 200, 230, 0.6);
-  margin-top: 4px;
+.bt-banner-arrow {
+  color: var(--banner-c, #ff6b9d);
+  font-size: 14px;
+  font-weight: 900;
+  filter: drop-shadow(0 0 6px currentColor);
 }
-.bt-banner-ult .bt-banner-text {
-  background: linear-gradient(180deg, #fde047, #f59e0b, #f87171);
-  -webkit-background-clip: text; background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
+.bt-banner-fire { --banner-c: #ff8c42; }
+.bt-banner-water { --banner-c: #60a5fa; }
+.bt-banner-wood { --banner-c: #4ade80; }
+.bt-banner-light { --banner-c: #fde047; }
+.bt-banner-dark { --banner-c: #c084fc; }
+.bt-banner-ult { --banner-c: #fde047; box-shadow: 0 0 28px rgba(253, 224, 71, 0.4) inset; }
 .banner-enter-active, .banner-leave-active { transition: all 0.3s cubic-bezier(.2,.9,.3,1.4); }
-.banner-enter-from, .banner-leave-to { opacity: 0; transform: scale(0.7); }
+.banner-enter-from, .banner-leave-to { opacity: 0; transform: translate(-50%, -50%) scale(0.85); }
+
+/* ULT cut-in */
+.bt-cutin {
+  position: absolute; inset: 0; z-index: 36;
+  pointer-events: none;
+  overflow: hidden;
+}
+.cutin-bg {
+  position: absolute; inset: 0;
+  background: linear-gradient(135deg, rgba(0,0,0,0.85) 0%, rgba(60, 0, 30, 0.7) 50%, rgba(0,0,0,0.85) 100%);
+  animation: cutin-bg-anim 1.1s ease-out forwards;
+}
+@keyframes cutin-bg-anim {
+  0% { opacity: 0; }
+  20% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { opacity: 0; }
+}
+.cutin-stripes {
+  position: absolute; inset: 0;
+}
+.cutin-stripes span {
+  position: absolute;
+  height: 14px;
+  background: linear-gradient(90deg, transparent, #fde047, #ff6b9d, transparent);
+  filter: blur(2px) drop-shadow(0 0 12px #fde047);
+  animation: cutin-stripe 1.1s cubic-bezier(.2,.6,.3,1) forwards;
+}
+.cutin-stripes span:nth-child(1) { top: 20%; left: -100%; width: 100%; transform: skewY(-3deg); animation-delay: 0s; }
+.cutin-stripes span:nth-child(2) { top: 48%; left: -100%; width: 100%; transform: skewY(2deg); animation-delay: 0.1s; }
+.cutin-stripes span:nth-child(3) { top: 76%; left: -100%; width: 100%; transform: skewY(-2deg); animation-delay: 0.2s; }
+@keyframes cutin-stripe {
+  0% { left: -100%; opacity: 0; }
+  30% { opacity: 1; }
+  100% { left: 100%; opacity: 0; }
+}
+.cutin-content {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex; align-items: center; gap: 28px;
+  animation: cutin-content 1.1s cubic-bezier(.2,.9,.3,1.4) forwards;
+}
+@keyframes cutin-content {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.7); }
+  25% { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
+  75% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.1); }
+}
+.cutin-portrait {
+  width: 180px; height: 240px; object-fit: cover;
+  border: 3px solid #fde047;
+  border-radius: 8px;
+  filter: drop-shadow(0 0 24px rgba(253, 224, 71, 0.7));
+  clip-path: polygon(8px 0, calc(100% - 8px) 0, 100% 8px, 100% calc(100% - 8px), calc(100% - 8px) 100%, 8px 100%, 0 calc(100% - 8px), 0 8px);
+}
+.cutin-text { text-align: left; }
+.cutin-eye {
+  font-family: 'Orbitron', monospace;
+  font-size: 13px; letter-spacing: 0.4em;
+  color: #fde047;
+  text-shadow: 0 0 12px #fde047;
+}
+.cutin-name {
+  font-size: 1.6rem; font-weight: 900;
+  color: white;
+  text-shadow: 0 2px 6px rgba(0,0,0,0.8), 0 0 16px rgba(253, 224, 71, 0.6);
+  margin: 4px 0;
+}
+.cutin-skill {
+  font-family: 'Noto Sans JP', sans-serif;
+  font-weight: 900;
+  font-size: 2.4rem;
+  background: linear-gradient(180deg, #fff7c2, #fde047, #f59e0b, #f87171);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 4px 18px rgba(253, 224, 71, 0.7));
+  letter-spacing: 0.04em;
+}
+.cutin-enter-active { transition: opacity 0.2s ease; }
+.cutin-enter-from { opacity: 0; }
+.cutin-leave-active { transition: opacity 0.3s ease; }
+.cutin-leave-to { opacity: 0; }
+
+/* Effect overlay layer */
+.bt-fx-layer {
+  position: absolute; inset: 0;
+  pointer-events: none;
+  z-index: 25;
+}
 
 /* HEADER */
 .bt-header {

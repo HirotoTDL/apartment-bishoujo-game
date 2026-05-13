@@ -31,12 +31,36 @@ export function startStage(stageId: string): StageProgress {
 export function nextEncounter(progress: StageProgress): BattleUnit[] {
   const stage = STAGES_BY_ID[progress.stageId];
   const isFinal = progress.battlesCompleted + 1 === progress.battlesToClear;
-  if (isFinal && stage.bossCharId && stage.bossLv) {
-    return [makeWildUnit(stage.bossCharId, stage.bossLv)];
+
+  // Helper: how many enemies for this chapter, capped at 4
+  function scaleByChapter(min: number, max: number): number {
+    const lo = Math.min(4, Math.max(1, min));
+    const hi = Math.min(4, Math.max(lo, max));
+    return randInt(lo, hi);
   }
-  // Pick 1-2 enemies
-  const numEnemies = Math.random() < 0.3 ? 2 : 1;
+
   const enemies: BattleUnit[] = [];
+
+  if (isFinal && stage.bossCharId && stage.bossLv) {
+    // Boss battle: boss + minions (more minions in later chapters)
+    enemies.push(makeWildUnit(stage.bossCharId, stage.bossLv));
+    const minionCount = Math.min(3, Math.max(0, stage.chapter - 1));
+    for (let i = 0; i < minionCount; i++) {
+      const pick = weightedPick(stage.encounters);
+      const lvl = Math.max(1, randInt(pick.minLv, pick.maxLv) - 2);
+      enemies.push(makeWildUnit(pick.charId, lvl));
+    }
+    return enemies;
+  }
+
+  // Regular encounter: 1-4 enemies based on chapter progression
+  // Chapter 1: 1-2, Chapter 2: 2-3, Chapter 3+: 2-4, Chapter 4-5: 3-4
+  let numEnemies: number;
+  if (stage.chapter === 1) numEnemies = scaleByChapter(1, 2);
+  else if (stage.chapter === 2) numEnemies = scaleByChapter(2, 3);
+  else if (stage.chapter === 3) numEnemies = scaleByChapter(2, 4);
+  else numEnemies = scaleByChapter(3, 4);
+
   for (let i = 0; i < numEnemies; i++) {
     const pick = weightedPick(stage.encounters);
     const lvl = randInt(pick.minLv, pick.maxLv);

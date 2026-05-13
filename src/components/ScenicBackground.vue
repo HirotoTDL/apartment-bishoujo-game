@@ -464,7 +464,7 @@ const props = withDefaults(defineProps<{
 
 <style scoped>
 .scenic-bg {
-  position: fixed;
+  position: absolute;
   inset: 0;
   z-index: -10;
   overflow: hidden;

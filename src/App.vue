@@ -2,6 +2,7 @@
 import { onMounted, watch } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { usePlayerStore } from "./stores/player";
+import ScaleToFit from "./components/ScaleToFit.vue";
 
 const router = useRouter();
 const route = useRoute();
@@ -33,5 +34,7 @@ watch(
 </script>
 
 <template>
-  <router-view />
+  <ScaleToFit :design-width="1280" :design-height="720">
+    <router-view />
+  </ScaleToFit>
 </template>

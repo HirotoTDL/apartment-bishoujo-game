@@ -455,7 +455,7 @@ const skillElementColor: Record<string, string> = { fire: "#ff6b47", water: "#3a
 
 <style scoped>
 .bt-root {
-  position: fixed;
+  position: absolute;
   inset: 0;
   overflow: hidden;
   color: white;
@@ -740,7 +740,7 @@ const skillElementColor: Record<string, string> = { fire: "#ff6b47", water: "#3a
 /* LOG */
 .bt-log-section { padding: 0 0.85rem; flex-shrink: 0; }
 .bt-log {
-  height: 7vh; min-height: 50px; max-height: 90px;
+  height: 70px;
   overflow-y: auto;
   padding: 0.45rem 0.7rem;
   background: linear-gradient(180deg, rgba(0,0,0,0.6), rgba(0,0,0,0.4));
@@ -902,7 +902,7 @@ const skillElementColor: Record<string, string> = { fire: "#ff6b47", water: "#3a
 
 /* RESULT */
 .result-overlay {
-  position: fixed; inset: 0; z-index: 50;
+  position: absolute; inset: 0; z-index: 50;
   background: rgba(0,0,0,0.85);
   backdrop-filter: blur(14px);
   display: flex; align-items: center; justify-content: center;

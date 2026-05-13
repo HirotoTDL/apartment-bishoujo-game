@@ -138,6 +138,32 @@ Rules:
   color treatment enough that adjacent characters feel like different cards.
 - Record the intended art lane in the generation prompt.
 
+## Rarity Impact Rule
+
+Higher rarity characters must feel like premium social-game cards.
+
+- UR: flagship popular-illustrator slot. Use exceptional beauty, ornate costume
+  density, striking silhouette, luminous eyes, memorable accessory shapes, and a
+  composition that immediately feels special.
+- SSR: near-flagship card quality. Use highly polished faces, strong motif
+  clarity, richer materials, and a more dramatic pose than R/SR.
+- SR: clearly attractive and distinctive, with one strong hook such as weapon,
+  costume silhouette, hairstyle, or color contrast.
+- R: charming and readable, with one memorable motif and moderate costume
+  complexity.
+- N: approachable and cute, simpler silhouette, lower ornament density.
+
+High rarity does not need to be universally safe or bland. It may be niche,
+gothic, glamorous, majestic, sharp, mysterious, or unusually stylized, but it
+must catch the eye and feel deliberately designed.
+
+For UR/SSR prompts, explicitly include:
+
+- `premium popular-illustrator social-game card quality`
+- a unique silhouette note
+- higher detail density in fabric, hair, eyes, and accessories
+- clear adult beauty and rarity presence
+
 Recommended stable prompt ending:
 
 ```text

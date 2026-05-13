@@ -171,7 +171,7 @@ function skillIconFor(s: any): string {
 
 <style scoped>
 .cd-root {
-  position: fixed; inset: 0;
+  position: absolute; inset: 0;
   overflow: hidden;
   color: white;
   display: flex; flex-direction: column;

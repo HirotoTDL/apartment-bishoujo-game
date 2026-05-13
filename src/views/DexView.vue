@@ -111,7 +111,7 @@ function viewChar(id: string) {
 
 <style scoped>
 .dex-root {
-  position: fixed; inset: 0;
+  position: absolute; inset: 0;
   overflow: hidden;
   color: white;
   display: flex; flex-direction: column;

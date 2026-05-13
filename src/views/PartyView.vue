@@ -118,7 +118,7 @@ const sortLabels = { rarity: "レア度", level: "レベル", newest: "入手順
 
 <style scoped>
 .pv-root {
-  position: fixed; inset: 0;
+  position: absolute; inset: 0;
   overflow: hidden;
   color: white;
   display: flex; flex-direction: column;
@@ -185,22 +185,32 @@ const sortLabels = { rarity: "レア度", level: "レベル", newest: "入手順
 .pv-party-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-auto-rows: 220px;
   gap: 0.55rem;
-  /* compact - each slot ~22vh */
 }
-.pv-slot { position: relative; cursor: pointer; }
+.pv-slot {
+  position: relative; cursor: pointer;
+  min-height: 0; min-width: 0;
+  height: 100%;
+}
+.pv-party-grid .pv-slot :deep(.pcard) {
+  height: 100%;
+  display: flex; flex-direction: column;
+}
+.pv-party-grid .pv-slot :deep(.pcard-portrait) {
+  flex: 1; aspect-ratio: auto; min-height: 0;
+}
+.pv-party-grid .pv-slot :deep(.pcard-portrait img) {
+  height: 100%; width: 100%; object-fit: cover;
+}
 .pv-empty {
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.3rem;
-  aspect-ratio: 3/5;
-  max-height: 26vh;
+  height: 100%;
   border: 2px dashed rgba(255, 255, 255, 0.1);
   border-radius: 12px;
   color: rgba(255, 255, 255, 0.25);
   font-family: 'Orbitron', monospace;
   font-size: 9px; letter-spacing: 0.25em;
-}
-.pv-party-grid .pv-slot > * {
-  max-height: 26vh;
 }
 
 /* Pool (scrollable inner) */

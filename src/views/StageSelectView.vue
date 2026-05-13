@@ -134,7 +134,7 @@ function nextChapter() { chapterIdx.value = Math.min(chapters.value.length - 1, 
 
 <style scoped>
 .ss-root {
-  position: fixed; inset: 0;
+  position: absolute; inset: 0;
   overflow: hidden;
   color: white;
   display: flex; flex-direction: column;

@@ -106,7 +106,7 @@ async function start(mode: SignInMode = "google") {
 
 <style scoped>
 .title-root {
-  position: fixed;
+  position: absolute;
   inset: 0;
   overflow: hidden;
   color: white;
@@ -125,7 +125,7 @@ async function start(mode: SignInMode = "google") {
   position: relative; z-index: 2;
   width: 100%; height: 100%;
   display: flex; align-items: center; justify-content: center;
-  padding: 2.5vh 4vw;
+  padding: 20px 50px;
 }
 
 .rail {
@@ -134,26 +134,25 @@ async function start(mode: SignInMode = "google") {
   display: flex; flex-direction: column; align-items: center; gap: 0.65rem;
   opacity: 0.65;
 }
-.rail-left { left: 1.5vw; }
-.rail-right { right: 1.5vw; }
+.rail-left { left: 18px; }
+.rail-right { right: 18px; }
 .rail-line {
   width: 1px;
-  height: 7vh;
+  height: 60px;
   background: linear-gradient(to bottom, transparent, rgba(255, 200, 230, 0.5), transparent);
 }
 .rail-text {
   font-family: 'Orbitron', monospace;
-  font-size: clamp(8px, 0.7vw, 10px);
+  font-size: 10px;
   letter-spacing: 0.35em;
   color: rgba(255, 200, 230, 0.8);
   writing-mode: vertical-rl;
   text-orientation: mixed;
 }
-@media (max-width: 768px) { .rail { display: none; } }
 
 .title-content {
   display: flex; flex-direction: column; align-items: center;
-  gap: clamp(0.7rem, 1.6vh, 1.1rem);
+  gap: 14px;
   text-align: center;
   max-width: 720px;
   animation: stage-in 1.1s cubic-bezier(.2,.9,.3,1.2) backwards;
@@ -173,7 +172,7 @@ async function start(mode: SignInMode = "google") {
 }
 .tagline-text {
   font-family: 'Orbitron', monospace;
-  font-size: clamp(9px, 1vw, 11px);
+  font-size: 11px;
   letter-spacing: 0.4em;
   color: rgba(255, 200, 230, 0.9);
   text-shadow: 0 0 12px rgba(255, 107, 157, 0.6);
@@ -189,7 +188,7 @@ async function start(mode: SignInMode = "google") {
   display: block;
   font-family: 'Noto Sans JP', sans-serif;
   font-weight: 900;
-  font-size: clamp(44px, 8.5vw, 86px);
+  font-size: 80px;
 }
 .title-row-1 {
   background: linear-gradient(180deg, #ffffff 0%, #ffe4f0 60%, #ffacd0 100%);
@@ -209,14 +208,14 @@ async function start(mode: SignInMode = "google") {
 .sub-bracket { color: rgba(255, 107, 157, 0.7); font-size: 1.2rem; }
 .sub-text {
   font-family: 'Orbitron', monospace;
-  font-size: clamp(9px, 0.9vw, 11px);
+  font-size: 11px;
   letter-spacing: 0.4em;
   color: rgba(255, 220, 240, 0.7);
 }
 
 .title-flavor {
   color: rgba(255, 255, 255, 0.7);
-  font-size: clamp(12px, 1.1vw, 14px);
+  font-size: 14px;
   line-height: 1.8;
   max-width: 460px;
   margin: 0;
@@ -233,7 +232,7 @@ async function start(mode: SignInMode = "google") {
   padding: 0.85rem 1.15rem;
   font-weight: 700;
   letter-spacing: 0.04em;
-  font-size: clamp(13px, 1vw, 15px);
+  font-size: 15px;
   transition: all 0.25s ease;
   overflow: hidden;
   border: 1px solid transparent;
@@ -272,7 +271,7 @@ async function start(mode: SignInMode = "google") {
 .title-status {
   display: inline-flex; align-items: center; gap: 0.35rem;
   font-family: 'Orbitron', monospace;
-  font-size: clamp(8px, 0.7vw, 10px);
+  font-size: 10px;
   letter-spacing: 0.25em;
   color: rgba(255, 220, 240, 0.55);
 }
@@ -290,11 +289,11 @@ async function start(mode: SignInMode = "google") {
 
 .title-footer {
   position: absolute;
-  bottom: 1.2vh; left: 50%;
+  bottom: 10px; left: 50%;
   transform: translateX(-50%);
   display: flex; gap: 0.85rem; align-items: center;
   font-family: 'Orbitron', monospace;
-  font-size: clamp(7px, 0.65vw, 9px);
+  font-size: 9px;
   letter-spacing: 0.3em;
   color: rgba(255, 220, 240, 0.35);
   white-space: nowrap;

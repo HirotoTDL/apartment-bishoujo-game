@@ -80,7 +80,7 @@ const itemTier: Record<string, "common" | "rare" | "epic" | "legendary"> = {
 
 <style scoped>
 .sh-root {
-  position: fixed; inset: 0;
+  position: absolute; inset: 0;
   overflow: hidden;
   color: white;
   display: flex; flex-direction: column;

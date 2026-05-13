@@ -3,13 +3,14 @@
 @tailwind utilities;
 
 :root {
-  font-family: "Yu Gothic", "YuGothic", "Hiragino Sans", system-ui, sans-serif;
+  font-family: "M PLUS Rounded 1c", "Noto Sans JP", "Yu Gothic", system-ui, sans-serif;
   color-scheme: dark;
-  background: #0f0a1e;
+  background: #0a0518;
   color: #f5f5f5;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
+  --tw-shadow-color: rgba(255, 107, 157, 0.5);
 }
 
 html, body, #app {
@@ -20,37 +21,246 @@ html, body, #app {
   overflow-x: hidden;
 }
 
+body {
+  background:
+    radial-gradient(ellipse at 20% 10%, rgba(167, 91, 255, 0.3), transparent 60%),
+    radial-gradient(ellipse at 80% 80%, rgba(255, 107, 157, 0.3), transparent 60%),
+    radial-gradient(ellipse at 50% 50%, rgba(43, 22, 78, 0.6), transparent 70%),
+    linear-gradient(135deg, #0a0518 0%, #15082b 50%, #1a0a3a 100%);
+  min-height: 100vh;
+  position: relative;
+}
+
 button {
   font-family: inherit;
   cursor: pointer;
 }
 
+/* ============================= */
+/* COMPONENT CLASSES             */
+/* ============================= */
+
 @layer components {
+  /* === Buttons === */
   .btn {
-    @apply px-4 py-2 rounded-md bg-ui-accent text-white font-bold transition hover:brightness-110 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed;
+    @apply relative px-6 py-3 rounded-lg font-bold text-white tracking-wide overflow-hidden;
+    background: linear-gradient(135deg, #ff6b9d 0%, #c34dff 100%);
+    box-shadow: 0 4px 16px rgba(255, 107, 157, 0.4), 0 1px 0 rgba(255, 255, 255, 0.3) inset;
+    transition: all 0.2s ease;
   }
+  .btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(255, 107, 157, 0.6), 0 1px 0 rgba(255, 255, 255, 0.4) inset;
+    filter: brightness(1.1);
+  }
+  .btn:active:not(:disabled) {
+    transform: translateY(0);
+  }
+  .btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  .btn::after {
+    content: '';
+    position: absolute;
+    top: 0; left: -100%;
+    width: 100%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+    transition: left 0.5s ease;
+  }
+  .btn:hover:not(:disabled)::after { left: 100%; }
+
   .btn-secondary {
-    @apply px-4 py-2 rounded-md bg-ui-panel border border-white/20 text-white font-medium transition hover:bg-white/10 active:scale-95;
+    @apply px-4 py-2 rounded-lg bg-ui-panel/80 backdrop-blur border border-white/20 text-white font-medium tracking-wide;
+    transition: all 0.2s ease;
   }
+  .btn-secondary:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.4);
+    transform: translateY(-1px);
+  }
+
+  .btn-google {
+    @apply relative px-6 py-3 rounded-lg font-bold tracking-wide overflow-hidden flex items-center justify-center gap-3;
+    background: white;
+    color: #333;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3), 0 1px 0 rgba(255, 255, 255, 0.7) inset;
+    transition: all 0.2s ease;
+  }
+  .btn-google:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), 0 1px 0 rgba(255, 255, 255, 0.7) inset;
+  }
+
+  /* === Panels === */
   .panel {
-    @apply bg-ui-panel/80 backdrop-blur rounded-lg border border-white/10 shadow-lg;
+    background: linear-gradient(135deg, rgba(31, 21, 56, 0.85), rgba(42, 28, 74, 0.85));
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 0.75rem;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4), 0 1px 0 rgba(255, 255, 255, 0.05) inset;
   }
-  .rarity-N { color: theme('colors.rarity.N'); }
-  .rarity-R { color: theme('colors.rarity.R'); }
-  .rarity-SR { color: theme('colors.rarity.SR'); }
-  .rarity-SSR { color: theme('colors.rarity.SSR'); }
-  .rarity-UR { color: theme('colors.rarity.UR'); }
+  .panel-glow {
+    @apply panel;
+    box-shadow: 0 0 32px rgba(255, 107, 157, 0.3), 0 4px 24px rgba(0, 0, 0, 0.5), 0 1px 0 rgba(255, 255, 255, 0.1) inset;
+  }
+
+  /* === Rarity styling === */
+  .rarity-text-N { color: #cbd5e1; }
+  .rarity-text-R { color: #60a5fa; }
+  .rarity-text-SR { color: #c084fc; }
+  .rarity-text-SSR { color: #fbbf24; text-shadow: 0 0 12px rgba(251, 191, 36, 0.6); }
+  .rarity-text-UR {
+    background: linear-gradient(90deg, #f87171, #fbbf24, #f87171);
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: shimmer 3s linear infinite;
+  }
+
+  .rarity-badge {
+    @apply inline-block px-2 py-0.5 rounded text-xs font-extrabold tracking-wider;
+  }
+  .rarity-badge-N { background: linear-gradient(135deg, #9ca3af, #6b7280); color: #f3f4f6; }
+  .rarity-badge-R { background: linear-gradient(135deg, #60a5fa, #2563eb); color: white; }
+  .rarity-badge-SR { background: linear-gradient(135deg, #c084fc, #7c3aed); color: white; box-shadow: 0 0 8px rgba(168, 85, 247, 0.6); }
+  .rarity-badge-SSR {
+    background: linear-gradient(135deg, #fde047, #ea580c);
+    color: white;
+    box-shadow: 0 0 10px rgba(251, 191, 36, 0.8);
+    animation: pulse-glow 2s ease-in-out infinite;
+  }
+  .rarity-badge-UR {
+    background: linear-gradient(135deg, #f87171, #be185d, #f87171);
+    background-size: 200% 100%;
+    color: white;
+    box-shadow: 0 0 14px rgba(239, 68, 68, 0.9);
+    animation: shimmer 2s linear infinite, pulse-glow 1.5s ease-in-out infinite;
+  }
+
+  /* Element badges */
+  .elem-badge {
+    @apply inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold text-white;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+  }
+  .elem-fire   { background: linear-gradient(135deg, #ff8c42, #c2410c); box-shadow: 0 0 8px rgba(249, 115, 22, 0.6); }
+  .elem-water  { background: linear-gradient(135deg, #38bdf8, #1d4ed8); box-shadow: 0 0 8px rgba(56, 189, 248, 0.6); }
+  .elem-wood   { background: linear-gradient(135deg, #4ade80, #15803d); box-shadow: 0 0 8px rgba(74, 222, 128, 0.6); }
+  .elem-light  { background: linear-gradient(135deg, #fde68a, #d97706); box-shadow: 0 0 8px rgba(253, 230, 138, 0.7); }
+  .elem-dark   { background: linear-gradient(135deg, #c084fc, #4c1d95); box-shadow: 0 0 8px rgba(192, 132, 252, 0.6); }
+
+  /* === HP/MP Bars === */
+  .stat-bar {
+    @apply h-2 rounded-full overflow-hidden;
+    background: rgba(0,0,0,0.5);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.5) inset;
+  }
+  .stat-bar-fill {
+    @apply h-full rounded-full transition-all duration-500 ease-out;
+    background-size: 200% 100%;
+    box-shadow: 0 0 8px currentColor;
+  }
+  .stat-bar-fill-hp {
+    background: linear-gradient(90deg, #f87171, #ef4444, #dc2626);
+  }
+  .stat-bar-fill-mp {
+    background: linear-gradient(90deg, #60a5fa, #3b82f6, #1d4ed8);
+  }
+  .stat-bar-fill-exp {
+    background: linear-gradient(90deg, #fde047, #f59e0b, #ea580c);
+  }
+
+  /* Glass card hover */
+  .card-hover {
+    transition: transform 0.25s cubic-bezier(.2,.9,.3,1.4), box-shadow 0.25s ease, filter 0.25s ease;
+  }
+  .card-hover:hover {
+    transform: translateY(-4px) scale(1.02);
+    filter: brightness(1.08);
+  }
+
+  /* Game-style headings */
+  .h-title {
+    font-family: 'M PLUS Rounded 1c', 'Noto Sans JP', sans-serif;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    text-shadow: 0 2px 0 rgba(0,0,0,0.4), 0 0 24px rgba(255, 107, 157, 0.5);
+  }
+  .h-tech {
+    font-family: 'Orbitron', monospace;
+    letter-spacing: 0.1em;
+  }
+
+  /* Damage popup */
+  .damage-popup {
+    @apply absolute font-extrabold text-3xl pointer-events-none select-none;
+    text-shadow: 0 2px 0 #000, 0 0 12px currentColor, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+    animation: float-up 1.2s ease-out forwards;
+  }
+  .damage-popup-physical { color: #fde047; }
+  .damage-popup-fire { color: #f87171; }
+  .damage-popup-water { color: #60a5fa; }
+  .damage-popup-wood { color: #4ade80; }
+  .damage-popup-light { color: #fef3c7; }
+  .damage-popup-dark { color: #c084fc; }
+  .damage-popup-heal { color: #86efac; }
+
+  /* Skill flash overlay */
+  .skill-flash-circle {
+    @apply absolute rounded-full pointer-events-none;
+    background: radial-gradient(circle, rgba(255,255,255,0.85) 0%, currentColor 35%, transparent 70%);
+    animation: skill-flash 0.8s ease-out forwards;
+    mix-blend-mode: screen;
+  }
+
+  /* Background particles */
+  .bg-particles::before, .bg-particles::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image: radial-gradient(2px 2px at 15% 25%, rgba(255,255,255,0.7), transparent), radial-gradient(1px 1px at 65% 45%, rgba(255,200,200,0.5), transparent), radial-gradient(2px 2px at 35% 70%, rgba(200,200,255,0.5), transparent), radial-gradient(1px 1px at 85% 15%, rgba(255,220,255,0.6), transparent), radial-gradient(1.5px 1.5px at 50% 90%, rgba(255,255,200,0.5), transparent);
+    background-size: 600px 600px;
+    animation: float-bg 18s ease-in-out infinite;
+  }
+  .bg-particles::after {
+    background-size: 800px 800px;
+    animation-duration: 24s;
+    animation-direction: reverse;
+    opacity: 0.7;
+  }
 }
 
-@keyframes pulse-rarity {
-  0%, 100% { filter: brightness(1); }
-  50% { filter: brightness(1.3); }
-}
-.animate-rarity { animation: pulse-rarity 2s ease-in-out infinite; }
+/* ============================= */
+/* UTILITY EFFECTS               */
+/* ============================= */
 
-@keyframes shake {
-  0%, 100% { transform: translateX(0); }
-  25% { transform: translateX(-8px); }
-  75% { transform: translateX(8px); }
+@layer utilities {
+  .text-stroke {
+    -webkit-text-stroke: 1px rgba(0,0,0,0.5);
+  }
+  .text-glow {
+    text-shadow: 0 0 12px currentColor, 0 0 24px currentColor;
+  }
+  .text-game-shadow {
+    text-shadow: 0 2px 0 rgba(0,0,0,0.6), 0 4px 12px rgba(0,0,0,0.4);
+  }
+  .frosted {
+    backdrop-filter: blur(16px) saturate(1.4);
+    -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  }
 }
-.animate-shake { animation: shake 0.4s ease-in-out; }
+
+/* Active character border pulse in battle */
+.active-turn {
+  animation: pulse-glow 1.2s ease-in-out infinite;
+  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.8), 0 0 24px rgba(96, 165, 250, 0.6);
+}
+
+/* Defeated unit (HP=0) */
+.fallen {
+  filter: grayscale(0.8) brightness(0.5);
+  transform: rotate(-3deg);
+  transition: all 0.4s ease;
+}

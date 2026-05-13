@@ -3,9 +3,11 @@ import { computed } from "vue";
 import { useRouter } from "vue-router";
 import { usePlayerStore } from "../stores/player";
 import { CHARACTERS_BY_ID } from "../game/data/characters";
-import { SKILLS } from "../game/data/skills";
+import { SKILLS, ELEMENT_LABEL } from "../game/data/skills";
 import { effectiveStats, maxMP, expForNextLevel, learnedSkills } from "../game/growth";
 import { portraitForChar } from "../assets/placeholder";
+import AnimatedBackground from "../components/AnimatedBackground.vue";
+import RarityFrame from "../components/RarityFrame.vue";
 
 const props = defineProps<{ uid: string }>();
 const player = usePlayerStore();
@@ -27,83 +29,217 @@ const allStagePortraits = computed(() => {
     unlockLv: e.unlockLv,
   }));
 });
+
+const elementSym: Record<string, string> = { fire: "🔥", water: "💧", wood: "🌿", light: "✨", dark: "🌙" };
+const statItems = computed(() => [
+  { label: "HP", val: `${char.value.hp}/${stats.value.hp}`, icon: "❤️", color: "#f87171" },
+  { label: "MP", val: `${char.value.mp}/${mpMaxV.value}`, icon: "💧", color: "#60a5fa" },
+  { label: "ATK", val: stats.value.atk, icon: "⚔️", color: "#fbbf24" },
+  { label: "DEF", val: stats.value.def, icon: "🛡️", color: "#a78bfa" },
+  { label: "MAG", val: stats.value.mag, icon: "✨", color: "#f472b6" },
+  { label: "SPD", val: stats.value.spd, icon: "💨", color: "#34d399" },
+]);
 </script>
 
 <template>
-  <div class="min-h-screen bg-gradient-to-br from-indigo-950 to-purple-950 text-white p-4 md:p-8">
-    <header class="flex items-center justify-between mb-4">
-      <h2 class="text-2xl font-bold">キャラクター詳細</h2>
+  <div class="char-root min-h-screen text-white">
+    <AnimatedBackground :variant="(master.element as any) || 'cosmic'" intensity="normal" />
+
+    <header class="char-header">
       <button class="btn-secondary text-sm" @click="router.back()">← 戻る</button>
+      <div class="text-center">
+        <div class="text-[10px] text-pink-200 tracking-widest font-tech">CHARACTER</div>
+        <h2 class="text-xl font-bold text-game-shadow">{{ master.name }}</h2>
+      </div>
+      <span class="rarity-badge text-base" :class="`rarity-badge-${master.rarity}`">{{ master.rarity }}</span>
     </header>
 
-    <div class="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6">
-      <section class="panel p-4">
-        <img :src="portraitForChar(master.id, master.name, master.rarity, master.element, char.stage)" class="rounded-md w-full" />
-        <div class="mt-3">
-          <div class="flex items-center gap-2">
-            <span :class="`text-xs px-2 py-0.5 rounded bg-rarity-${master.rarity} text-black font-bold`">{{ master.rarity }}</span>
-            <span class="text-xs text-white/60">{{ master.element }}属性</span>
+    <main class="char-main">
+      <div class="char-grid">
+        <section>
+          <RarityFrame :rarity="master.rarity" :interactive="false">
+            <div class="portrait-block">
+              <img :src="portraitForChar(master.id, master.name, master.rarity, master.element, char.stage)" class="portrait-img" />
+              <div class="portrait-tag">
+                <span class="elem-badge" :class="`elem-${master.element}`">{{ elementSym[master.element] }}</span>
+                <span class="text-xs">{{ ELEMENT_LABEL[master.element] }}属性</span>
+                <span class="ml-auto text-xs font-tech text-pink-200">第{{ char.stage }}形態</span>
+              </div>
+            </div>
+          </RarityFrame>
+          <div class="lore-card mt-3">
+            <div class="text-[10px] text-pink-200 font-tech tracking-widest mb-1">LORE</div>
+            <p class="text-sm leading-relaxed text-white/80">{{ master.lore }}</p>
+            <div class="text-[10px] text-white/40 mt-2">由来: {{ master.apartmentSource }}</div>
           </div>
-          <h3 class="text-2xl font-bold mt-1">{{ master.name }}</h3>
-          <p class="text-xs text-white/60">{{ master.apartmentSource }}</p>
-          <p class="mt-2 text-sm">{{ master.lore }}</p>
-        </div>
-      </section>
+        </section>
 
-      <section class="space-y-3">
-        <div class="panel p-4">
-          <div class="flex items-center gap-3">
-            <div class="text-2xl font-bold">Lv {{ char.level }}</div>
-            <div class="text-sm text-white/60">第{{ char.stage }}形態</div>
+        <section class="char-right">
+          <div class="lv-card">
+            <div class="flex items-baseline gap-3">
+              <span class="text-[10px] font-tech text-white/55">LEVEL</span>
+              <div class="font-tech text-4xl font-extrabold text-glow">{{ char.level }}</div>
+              <span class="text-xs text-white/40 font-tech">/ 99</span>
+              <span class="ml-auto text-xs text-white/50">第{{ char.stage }}形態</span>
+            </div>
+            <div class="exp-bar mt-2">
+              <div class="exp-bar-fill" :style="{ width: (char.exp / expToNext * 100) + '%' }"></div>
+            </div>
+            <div class="flex justify-between text-[10px] text-white/50 font-tech mt-1">
+              <span>EXP {{ char.exp }}</span>
+              <span>→ NEXT {{ expToNext }}</span>
+            </div>
           </div>
-          <div class="text-xs mt-1">経験値 {{ char.exp }} / {{ expToNext }}</div>
-          <div class="h-2 bg-black/40 rounded overflow-hidden mt-1">
-            <div class="h-full bg-yellow-400" :style="{ width: (char.exp / expToNext * 100) + '%' }"></div>
-          </div>
-        </div>
 
-        <div class="panel p-4">
-          <h4 class="font-bold mb-2">ステータス</h4>
-          <div class="grid grid-cols-2 gap-2 text-sm">
-            <div>❤ HP: <span class="font-bold">{{ char.hp }} / {{ stats.hp }}</span></div>
-            <div>💧 MP: <span class="font-bold">{{ char.mp }} / {{ mpMaxV }}</span></div>
-            <div>⚔ ATK: {{ stats.atk }}</div>
-            <div>🛡 DEF: {{ stats.def }}</div>
-            <div>✨ MAG: {{ stats.mag }}</div>
-            <div>💨 SPD: {{ stats.spd }}</div>
+          <div class="stats-grid">
+            <div v-for="s in statItems" :key="s.label" class="stat-item" :style="{ borderColor: s.color + '66' }">
+              <span class="text-xl">{{ s.icon }}</span>
+              <div class="flex-1 min-w-0">
+                <div class="text-[10px] text-white/55 font-tech tracking-widest">{{ s.label }}</div>
+                <div class="font-bold text-base tabular-nums">{{ s.val }}</div>
+              </div>
+            </div>
           </div>
-        </div>
 
-        <div class="panel p-4">
-          <h4 class="font-bold mb-2">習得技</h4>
-          <ul class="space-y-1 text-sm">
-            <li v-for="sid in learned" :key="sid" class="border-b border-white/5 py-1">
-              <div class="font-bold">{{ SKILLS[sid]?.name }}</div>
-              <div class="text-xs text-white/60">{{ SKILLS[sid]?.description }} (MP {{ SKILLS[sid]?.mpCost }})</div>
-            </li>
-          </ul>
-          <div v-if="master.skillLearnset.some(l => l.lv > char.level)" class="mt-2 text-xs text-white/40">
-            次の技: Lv {{ master.skillLearnset.find(l => l.lv > char.level)!.lv }} で『{{ SKILLS[master.skillLearnset.find(l => l.lv > char.level)!.skill].name }}』
+          <div class="skills-card">
+            <h4 class="section-title text-pink-200 mb-2">習得技</h4>
+            <div class="space-y-1.5">
+              <div v-for="sid in learned" :key="sid" class="skill-row">
+                <div class="text-xl">{{ SKILLS[sid]?.kind === 'heal' ? '💚' : SKILLS[sid]?.kind === 'buff' ? '⬆' : elementSym[SKILLS[sid]?.element || 'light'] || '⚔' }}</div>
+                <div class="flex-1 min-w-0">
+                  <div class="font-bold text-sm">{{ SKILLS[sid]?.name }}</div>
+                  <div class="text-[10px] text-white/55 truncate">{{ SKILLS[sid]?.description }}</div>
+                </div>
+                <div v-if="SKILLS[sid]?.mpCost" class="text-blue-300 font-tech text-sm font-bold">{{ SKILLS[sid]?.mpCost }}<span class="text-[9px] text-white/40">MP</span></div>
+              </div>
+            </div>
+            <div v-if="master.skillLearnset.some(l => l.lv > char.level)" class="mt-3 next-skill">
+              次の習得: Lv {{ master.skillLearnset.find(l => l.lv > char.level)!.lv }} で
+              <strong class="text-pink-300">{{ SKILLS[master.skillLearnset.find(l => l.lv > char.level)!.skill].name }}</strong>
+            </div>
           </div>
-        </div>
-      </section>
-    </div>
-
-    <section class="max-w-4xl mx-auto mt-6 panel p-4">
-      <h4 class="font-bold mb-3">進化段階</h4>
-      <div class="grid grid-cols-3 gap-3">
-        <div
-          v-for="s in allStagePortraits"
-          :key="s.stage"
-          class="text-center"
-          :class="s.unlocked ? '' : 'opacity-40'"
-        >
-          <img :src="s.url" class="rounded-md mx-auto" />
-          <div class="mt-1 text-sm font-bold">第{{ s.stage }}形態</div>
-          <div class="text-xs text-white/60">{{ s.unlocked ? "✓ 解放済" : `Lv ${s.unlockLv} で進化` }}</div>
-          <div class="text-xs text-white/50 mt-1">{{ s.desc }}</div>
-        </div>
+        </section>
       </div>
-    </section>
+
+      <section class="evolutions-section">
+        <h4 class="section-title text-pink-200 mb-3">進化段階</h4>
+        <div class="evolutions-grid">
+          <div v-for="s in allStagePortraits" :key="s.stage" class="evo-card" :class="s.unlocked ? '' : 'evo-card--locked'">
+            <RarityFrame :rarity="master.rarity" :interactive="false">
+              <img :src="s.url" class="w-full block" />
+            </RarityFrame>
+            <div class="text-center mt-2">
+              <div class="text-sm font-bold">第{{ s.stage }}形態</div>
+              <div class="text-[10px] text-white/55 font-tech tracking-wider">{{ s.unlocked ? "✓ UNLOCKED" : `Lv ${s.unlockLv}` }}</div>
+              <div class="text-[10px] text-white/55 mt-1 line-clamp-2">{{ s.desc }}</div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
   </div>
 </template>
+
+<style scoped>
+.char-header {
+  display: flex; align-items: center; gap: 1rem; justify-content: space-between;
+  padding: 0.75rem 1rem;
+  background: linear-gradient(180deg, rgba(15, 8, 30, 0.85), rgba(15, 8, 30, 0.4));
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  position: sticky; top: 0; z-index: 20;
+}
+
+.char-main { max-width: 1100px; margin: 0 auto; padding: 1.5rem 1rem; }
+
+.char-grid {
+  display: grid; grid-template-columns: 1fr; gap: 1.25rem;
+}
+@media (min-width: 900px) { .char-grid { grid-template-columns: 1fr 1.2fr; } }
+
+.portrait-block { position: relative; }
+.portrait-img { width: 100%; aspect-ratio: 3/4; object-fit: cover; display: block; filter: contrast(1.05) saturate(1.1); }
+.portrait-tag {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: linear-gradient(to top, rgba(20,14,38,0.95), transparent);
+}
+
+.lore-card {
+  padding: 0.85rem 1rem;
+  background: linear-gradient(135deg, rgba(31,21,56,0.85), rgba(42,28,74,0.85));
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 0.6rem;
+}
+
+.char-right { display: flex; flex-direction: column; gap: 1rem; }
+
+.lv-card {
+  padding: 0.85rem 1rem;
+  background: linear-gradient(135deg, rgba(251,191,36,0.12), rgba(245,158,11,0.06));
+  border: 1px solid rgba(251,191,36,0.3);
+  border-radius: 0.6rem;
+  box-shadow: 0 0 16px rgba(251,191,36,0.1);
+}
+.exp-bar {
+  height: 6px;
+  background: rgba(0,0,0,0.5);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.exp-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #fde047, #f59e0b, #ea580c);
+  box-shadow: 0 0 8px #fbbf24;
+  transition: width 0.5s ease;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+.stat-item {
+  display: flex; align-items: center; gap: 0.6rem;
+  padding: 0.55rem 0.75rem;
+  background: linear-gradient(135deg, rgba(31,21,56,0.85), rgba(42,28,74,0.85));
+  border: 1px solid;
+  border-radius: 0.5rem;
+}
+
+.skills-card {
+  padding: 0.85rem 1rem;
+  background: linear-gradient(135deg, rgba(31,21,56,0.85), rgba(42,28,74,0.85));
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 0.6rem;
+}
+.section-title {
+  font-size: 0.95rem; font-weight: 800;
+  letter-spacing: 0.05em;
+}
+.skill-row {
+  display: flex; align-items: center; gap: 0.6rem;
+  padding: 0.5rem 0.6rem;
+  background: rgba(255,255,255,0.04);
+  border-radius: 0.4rem;
+  border-left: 3px solid rgba(255,107,157,0.3);
+}
+.next-skill {
+  padding: 0.55rem 0.75rem;
+  background: rgba(255,107,157,0.1);
+  border: 1px dashed rgba(255,107,157,0.4);
+  border-radius: 0.4rem;
+  font-size: 11px;
+  color: rgba(255,255,255,0.7);
+}
+
+.evolutions-section { margin-top: 1.5rem; }
+.evolutions-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0.85rem;
+}
+.evo-card { transition: all 0.25s ease; }
+.evo-card--locked { opacity: 0.35; filter: grayscale(0.7); }
+</style>

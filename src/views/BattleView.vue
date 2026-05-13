@@ -40,7 +40,7 @@ const showItemMenu = ref(false);
 const screenShake = ref<"" | "shake" | "shake-hard">("");
 const flashOverlay = ref<{ color: string } | null>(null);
 const banner = ref<{ attacker: string; skill: string; targets: string; element: string; kind: "skill" | "ult" } | null>(null);
-const ultCutin = ref<{ name: string; skill: string; portrait: string } | null>(null);
+const ultCutin = ref<{ name: string; skill: string; portrait: string; element: string; rarity: string; role: string } | null>(null);
 const popups = reactive<Array<{ id: number; unit: BattleUnit; value: number; kind: string; crit: boolean }>>([]);
 let popupId = 0;
 const skillFlashes = reactive<Array<{ id: number; unit: BattleUnit; element: string }>>([]);
@@ -257,9 +257,13 @@ async function executeTurn() {
           name: ev.actor.name,
           skill: sk.name,
           portrait: portraitForChar(m.id, m.name, m.rarity, m.element, ev.actor.stage, "battle"),
+          element: sk.element,
+          rarity: m.rarity,
+          role: m.role ?? "striker",
         };
-        await wait(1100);
+        await wait(1900);
         ultCutin.value = null;
+        await wait(120);
       }
       i++;
       continue;
@@ -503,20 +507,62 @@ const isWeaknessTo = (attackerElem: string, defenderElem: string) => {
       </div>
     </transition>
 
-    <!-- ULT cut-in overlay -->
+    <!-- ULT FULLSCREEN CUT-IN (multi-phase) -->
     <transition name="cutin">
-      <div v-if="ultCutin" class="bt-cutin">
-        <div class="cutin-bg"></div>
-        <div class="cutin-stripes">
+      <div v-if="ultCutin" class="ult-overlay" :class="`ult-elem-${ultCutin.element}`">
+        <!-- 1. Dark wash + radial pulse from center -->
+        <div class="ult-blackout"></div>
+        <div class="ult-radial"></div>
+        <!-- 2. Halftone dot pattern background -->
+        <div class="ult-halftone"></div>
+        <!-- 3. Diagonal speed-stripes rushing in -->
+        <div class="ult-stripes">
+          <span v-for="i in 7" :key="'s' + i" :class="`stripe-${i}`"></span>
+        </div>
+        <!-- 4. Concentric energy rings expanding outward -->
+        <div class="ult-rings">
           <span></span><span></span><span></span>
         </div>
-        <div class="cutin-content">
-          <img :src="ultCutin.portrait" class="cutin-portrait" />
-          <div class="cutin-text">
-            <div class="cutin-eye">ULTIMATE SKILL</div>
-            <div class="cutin-name">{{ ultCutin.name }}</div>
-            <div class="cutin-skill">{{ ultCutin.skill }}</div>
+        <!-- 5. Top/bottom cinematic letterbox bars -->
+        <div class="ult-bar ult-bar-top"></div>
+        <div class="ult-bar ult-bar-bottom"></div>
+        <!-- 6. Lightning bolts -->
+        <svg class="ult-lightning" viewBox="0 0 1280 720" preserveAspectRatio="none">
+          <path d="M 100,0 L 200,180 L 130,200 L 280,400 L 200,420 L 350,720" stroke="currentColor" stroke-width="3" fill="none" />
+          <path d="M 1180,0 L 1080,180 L 1150,200 L 1000,400 L 1080,420 L 930,720" stroke="currentColor" stroke-width="3" fill="none" />
+          <path d="M 640,-50 L 700,250 L 590,300 L 720,560" stroke="currentColor" stroke-width="2" fill="none" opacity="0.5" />
+        </svg>
+        <!-- 7. Big character portrait with hex-frame -->
+        <div class="ult-portrait-wrap">
+          <div class="ult-portrait-aura"></div>
+          <div class="ult-portrait-frame">
+            <img :src="ultCutin.portrait" class="ult-portrait" />
+            <div class="ult-portrait-gloss"></div>
           </div>
+          <!-- Decorative crosshairs -->
+          <div class="ult-cross-tl"></div>
+          <div class="ult-cross-tr"></div>
+          <div class="ult-cross-bl"></div>
+          <div class="ult-cross-br"></div>
+        </div>
+        <!-- 8. Skill title block (right side) -->
+        <div class="ult-titlebar">
+          <div class="ult-label">ULTIMATE SKILL</div>
+          <div class="ult-name">{{ ultCutin.name }}</div>
+          <div class="ult-skill-bar">
+            <span class="ult-bracket-l">▶</span>
+            <span class="ult-skill-name">{{ ultCutin.skill }}</span>
+            <span class="ult-bracket-r">◀</span>
+          </div>
+          <div class="ult-tags">
+            <span class="ult-tag ult-tag-rarity">{{ ultCutin.rarity }}</span>
+            <span class="ult-tag ult-tag-role">{{ (ROLE_LABEL as any)[ultCutin.role] }}</span>
+            <span class="ult-tag ult-tag-elem">{{ ultCutin.element.toUpperCase() }}</span>
+          </div>
+        </div>
+        <!-- 9. Particles burst -->
+        <div class="ult-particles">
+          <span v-for="i in 14" :key="'p' + i" :class="`particle-${i}`"></span>
         </div>
       </div>
     </transition>
@@ -845,84 +891,368 @@ const isWeaknessTo = (attackerElem: string, defenderElem: string) => {
 .banner-enter-active, .banner-leave-active { transition: all 0.3s cubic-bezier(.2,.9,.3,1.4); }
 .banner-enter-from, .banner-leave-to { opacity: 0; transform: translate(-50%, -50%) scale(0.85); }
 
-/* ULT cut-in */
-.bt-cutin {
-  position: absolute; inset: 0; z-index: 36;
+/* =====================================================================
+   ULT FULLSCREEN CUT-IN — 1.9s total
+   Phases (timing in ms):
+     0-150    : blackout + initial dark wash
+     150-450  : letterbox bars slide in + speed stripes rush
+     400-900  : portrait flies in from left + aura erupts
+     600-1200 : skill name pops + tags appear
+     1300-1900: hold + glow pulse, then fade out
+   ===================================================================== */
+.ult-overlay {
+  position: absolute; inset: 0; z-index: 80;
   pointer-events: none;
   overflow: hidden;
+  --ult-c: #fde047;
+  --ult-c2: #ff6b9d;
+  color: var(--ult-c);
 }
-.cutin-bg {
+.ult-elem-fire   { --ult-c: #ff8c42; --ult-c2: #fde047; }
+.ult-elem-water  { --ult-c: #60a5fa; --ult-c2: #c2eaff; }
+.ult-elem-wood   { --ult-c: #4ade80; --ult-c2: #fde047; }
+.ult-elem-light  { --ult-c: #fde047; --ult-c2: #ffffff; }
+.ult-elem-dark   { --ult-c: #c084fc; --ult-c2: #f0abfc; }
+
+/* === Blackout + radial pulse === */
+.ult-blackout {
   position: absolute; inset: 0;
-  background: linear-gradient(135deg, rgba(0,0,0,0.85) 0%, rgba(60, 0, 30, 0.7) 50%, rgba(0,0,0,0.85) 100%);
-  animation: cutin-bg-anim 1.1s ease-out forwards;
+  background: radial-gradient(circle at center, rgba(20, 5, 30, 0.7) 0%, rgba(0, 0, 0, 0.96) 70%);
+  animation: ult-blackout 1.9s ease-out forwards;
 }
-@keyframes cutin-bg-anim {
+@keyframes ult-blackout {
   0% { opacity: 0; }
-  20% { opacity: 1; }
-  80% { opacity: 1; }
+  8% { opacity: 1; }
+  88% { opacity: 1; }
   100% { opacity: 0; }
 }
-.cutin-stripes {
+.ult-radial {
+  position: absolute; inset: -10%;
+  background: radial-gradient(circle at 50% 50%, var(--ult-c) 0%, transparent 30%);
+  mix-blend-mode: screen;
+  opacity: 0;
+  animation: ult-radial 1.9s ease-out forwards;
+}
+@keyframes ult-radial {
+  0%, 5% { opacity: 0; transform: scale(0.2); }
+  20% { opacity: 0.6; transform: scale(1); }
+  40% { opacity: 0.3; transform: scale(1.4); }
+  90% { opacity: 0.2; transform: scale(1.8); }
+  100% { opacity: 0; transform: scale(2); }
+}
+
+/* === Halftone pattern === */
+.ult-halftone {
   position: absolute; inset: 0;
+  background-image: radial-gradient(circle at 50% 50%, rgba(255,255,255,0.18) 1.2px, transparent 1.5px);
+  background-size: 14px 14px;
+  mix-blend-mode: overlay;
+  opacity: 0;
+  animation: ult-halftone 1.9s ease-out forwards;
 }
-.cutin-stripes span {
+@keyframes ult-halftone {
+  0% { opacity: 0; transform: scale(1); }
+  15% { opacity: 0.8; transform: scale(1); }
+  85% { opacity: 0.6; transform: scale(1.15); }
+  100% { opacity: 0; transform: scale(1.2); }
+}
+
+/* === Diagonal speed stripes === */
+.ult-stripes { position: absolute; inset: 0; }
+.ult-stripes span {
   position: absolute;
-  height: 14px;
-  background: linear-gradient(90deg, transparent, #fde047, #ff6b9d, transparent);
-  filter: blur(2px) drop-shadow(0 0 12px #fde047);
-  animation: cutin-stripe 1.1s cubic-bezier(.2,.6,.3,1) forwards;
+  left: -120%; width: 120%;
+  height: 20px;
+  transform: skewY(-12deg);
+  background: linear-gradient(90deg, transparent 0%, transparent 30%, var(--ult-c2) 50%, var(--ult-c) 70%, transparent 100%);
+  filter: blur(1.5px) drop-shadow(0 0 14px var(--ult-c));
+  opacity: 0;
+  animation: ult-stripe 1.9s cubic-bezier(.2, .65, .35, 1) forwards;
 }
-.cutin-stripes span:nth-child(1) { top: 20%; left: -100%; width: 100%; transform: skewY(-3deg); animation-delay: 0s; }
-.cutin-stripes span:nth-child(2) { top: 48%; left: -100%; width: 100%; transform: skewY(2deg); animation-delay: 0.1s; }
-.cutin-stripes span:nth-child(3) { top: 76%; left: -100%; width: 100%; transform: skewY(-2deg); animation-delay: 0.2s; }
-@keyframes cutin-stripe {
-  0% { left: -100%; opacity: 0; }
-  30% { opacity: 1; }
-  100% { left: 100%; opacity: 0; }
+.stripe-1 { top: 8%;  animation-delay: 0.05s; }
+.stripe-2 { top: 21%; animation-delay: 0.12s; height: 8px; }
+.stripe-3 { top: 36%; animation-delay: 0.0s;  height: 30px; }
+.stripe-4 { top: 50%; animation-delay: 0.18s; height: 12px; }
+.stripe-5 { top: 64%; animation-delay: 0.08s; height: 22px; }
+.stripe-6 { top: 78%; animation-delay: 0.15s; height: 10px; }
+.stripe-7 { top: 90%; animation-delay: 0.22s; height: 16px; }
+@keyframes ult-stripe {
+  0%   { left: -120%; opacity: 0; }
+  6%   { opacity: 0.95; }
+  35%  { left: 100%; opacity: 0.85; }
+  55%  { opacity: 0; left: 100%; }
+  100% { opacity: 0; left: 100%; }
 }
-.cutin-content {
-  position: absolute;
-  top: 50%; left: 50%;
+
+/* === Concentric expanding rings === */
+.ult-rings {
+  position: absolute; left: 50%; top: 50%;
   transform: translate(-50%, -50%);
-  display: flex; align-items: center; gap: 28px;
-  animation: cutin-content 1.1s cubic-bezier(.2,.9,.3,1.4) forwards;
+  width: 0; height: 0;
 }
-@keyframes cutin-content {
-  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.7); }
-  25% { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
-  75% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.1); }
+.ult-rings span {
+  position: absolute; left: 0; top: 0;
+  width: 100px; height: 100px;
+  margin-left: -50px; margin-top: -50px;
+  border: 4px solid var(--ult-c);
+  border-radius: 50%;
+  opacity: 0;
+  filter: drop-shadow(0 0 18px var(--ult-c));
+  animation: ult-ring 1.9s ease-out forwards;
 }
-.cutin-portrait {
-  width: 180px; height: 240px; object-fit: cover;
-  border: 3px solid #fde047;
-  border-radius: 8px;
-  filter: drop-shadow(0 0 24px rgba(253, 224, 71, 0.7));
-  clip-path: polygon(8px 0, calc(100% - 8px) 0, 100% 8px, 100% calc(100% - 8px), calc(100% - 8px) 100%, 8px 100%, 0 calc(100% - 8px), 0 8px);
+.ult-rings span:nth-child(1) { animation-delay: 0.1s; }
+.ult-rings span:nth-child(2) { animation-delay: 0.25s; border-color: var(--ult-c2); }
+.ult-rings span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes ult-ring {
+  0% { transform: scale(0); opacity: 1; border-width: 4px; }
+  60% { transform: scale(12); opacity: 0.5; border-width: 1px; }
+  100% { transform: scale(16); opacity: 0; border-width: 0px; }
 }
-.cutin-text { text-align: left; }
-.cutin-eye {
+
+/* === Cinematic letterbox bars === */
+.ult-bar {
+  position: absolute; left: 0; right: 0;
+  height: 70px;
+  background: linear-gradient(to bottom, #000 60%, rgba(0,0,0,0.85));
+  border-color: var(--ult-c);
+  animation: ult-bar 1.9s cubic-bezier(.3,.7,.35,1) forwards;
+}
+.ult-bar-top    { top: 0;    transform: translateY(-100%); border-bottom: 2px solid var(--ult-c); box-shadow: 0 4px 18px var(--ult-c); }
+.ult-bar-bottom { bottom: 0; transform: translateY(100%);  border-top: 2px solid var(--ult-c); box-shadow: 0 -4px 18px var(--ult-c); background: linear-gradient(to top, #000 60%, rgba(0,0,0,0.85)); }
+@keyframes ult-bar {
+  0% { transform: translateY(var(--from, -100%)); }
+  18% { transform: translateY(0); }
+  82% { transform: translateY(0); }
+  100% { transform: translateY(var(--to, -100%)); }
+}
+.ult-bar-top    { --from: -100%; --to: -100%; }
+.ult-bar-bottom { --from: 100%;  --to: 100%; }
+
+/* === Lightning bolts === */
+.ult-lightning {
+  position: absolute; inset: 0;
+  pointer-events: none;
+  color: var(--ult-c);
+  filter: drop-shadow(0 0 6px var(--ult-c)) drop-shadow(0 0 14px var(--ult-c));
+  opacity: 0;
+  animation: ult-lightning 1.9s ease-out forwards;
+}
+@keyframes ult-lightning {
+  0%, 15% { opacity: 0; }
+  20% { opacity: 1; }
+  25% { opacity: 0.2; }
+  30% { opacity: 1; }
+  40% { opacity: 0.6; }
+  85% { opacity: 0.3; }
+  100% { opacity: 0; }
+}
+
+/* === Portrait with frame === */
+.ult-portrait-wrap {
+  position: absolute;
+  top: 50%; left: 22%;
+  transform: translate(-50%, -50%);
+  width: 340px; height: 440px;
+  opacity: 0;
+  animation: ult-portrait-pop 1.9s cubic-bezier(.2,.9,.3,1.4) forwards;
+}
+@keyframes ult-portrait-pop {
+  0% { opacity: 0; transform: translate(-150%, -50%) rotate(-8deg); }
+  18% { opacity: 1; transform: translate(-50%, -50%) rotate(0deg) scale(1.06); }
+  78% { opacity: 1; transform: translate(-50%, -50%) rotate(0deg) scale(1); }
+  100% { opacity: 0; transform: translate(-30%, -50%) rotate(0deg) scale(1.1); }
+}
+
+.ult-portrait-aura {
+  position: absolute; inset: -40px;
+  background:
+    radial-gradient(ellipse at center, var(--ult-c) 0%, transparent 55%),
+    radial-gradient(ellipse at center, var(--ult-c2) 0%, transparent 75%);
+  filter: blur(28px);
+  mix-blend-mode: screen;
+  opacity: 0.7;
+  animation: ult-aura 1.9s ease-in-out forwards;
+}
+@keyframes ult-aura {
+  0% { opacity: 0; transform: scale(0.5); }
+  20% { opacity: 1; transform: scale(1); }
+  60% { opacity: 0.85; transform: scale(1.12); }
+  100% { opacity: 0; transform: scale(1.3); }
+}
+
+.ult-portrait-frame {
+  position: absolute; inset: 0;
+  border: 3px solid var(--ult-c);
+  border-radius: 6px;
+  overflow: hidden;
+  background: rgba(0,0,0,0.4);
+  box-shadow:
+    0 0 40px var(--ult-c),
+    0 0 80px var(--ult-c),
+    0 8px 30px rgba(0,0,0,0.7),
+    inset 0 0 30px rgba(255,255,255,0.08);
+  clip-path: polygon(20px 0, calc(100% - 20px) 0, 100% 20px, 100% calc(100% - 20px), calc(100% - 20px) 100%, 20px 100%, 0 calc(100% - 20px), 0 20px);
+}
+.ult-portrait {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  filter: contrast(1.15) saturate(1.2);
+}
+.ult-portrait-gloss {
+  position: absolute; inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.0) 0%, rgba(255,255,255,0.25) 30%, transparent 50%);
+  mix-blend-mode: overlay;
+  animation: ult-gloss 1.9s ease-out forwards;
+}
+@keyframes ult-gloss {
+  0% { transform: translateX(-100%); opacity: 0; }
+  30% { transform: translateX(-50%); opacity: 1; }
+  60% { transform: translateX(100%); opacity: 0; }
+  100% { transform: translateX(100%); opacity: 0; }
+}
+
+/* Crosshair corner decorations */
+.ult-cross-tl, .ult-cross-tr, .ult-cross-bl, .ult-cross-br {
+  position: absolute;
+  width: 30px; height: 30px;
+  border-color: var(--ult-c);
+  filter: drop-shadow(0 0 6px var(--ult-c));
+  opacity: 0;
+  animation: ult-cross 1.9s ease-out forwards;
+}
+@keyframes ult-cross {
+  0%, 15% { opacity: 0; transform: scale(1.5); }
+  25% { opacity: 1; transform: scale(1); }
+  80% { opacity: 1; }
+  100% { opacity: 0; transform: scale(0.8); }
+}
+.ult-cross-tl { top: -16px;    left: -16px;    border-top: 3px solid; border-left: 3px solid; }
+.ult-cross-tr { top: -16px;    right: -16px;   border-top: 3px solid; border-right: 3px solid; }
+.ult-cross-bl { bottom: -16px; left: -16px;    border-bottom: 3px solid; border-left: 3px solid; }
+.ult-cross-br { bottom: -16px; right: -16px;   border-bottom: 3px solid; border-right: 3px solid; }
+
+/* === Title block (right side) === */
+.ult-titlebar {
+  position: absolute;
+  top: 50%; right: 6%;
+  transform: translateY(-50%);
+  max-width: 60%;
+  text-align: right;
+  opacity: 0;
+  animation: ult-title-pop 1.9s cubic-bezier(.2,.9,.3,1.4) forwards;
+}
+@keyframes ult-title-pop {
+  0%, 22% { opacity: 0; transform: translate(60px, -50%); }
+  32% { opacity: 1; transform: translate(-12px, -50%); }
+  45% { opacity: 1; transform: translate(0, -50%); }
+  80% { opacity: 1; transform: translate(0, -50%); }
+  100% { opacity: 0; transform: translate(40px, -50%); }
+}
+
+.ult-label {
   font-family: 'Orbitron', monospace;
-  font-size: 13px; letter-spacing: 0.4em;
-  color: #fde047;
-  text-shadow: 0 0 12px #fde047;
+  font-size: 18px; font-weight: 900;
+  letter-spacing: 0.5em;
+  color: var(--ult-c);
+  text-shadow: 0 0 18px var(--ult-c), 0 0 36px var(--ult-c);
+  margin-bottom: 6px;
 }
-.cutin-name {
+.ult-name {
+  font-family: 'M PLUS Rounded 1c', sans-serif;
   font-size: 1.6rem; font-weight: 900;
   color: white;
-  text-shadow: 0 2px 6px rgba(0,0,0,0.8), 0 0 16px rgba(253, 224, 71, 0.6);
-  margin: 4px 0;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.8), 0 0 18px var(--ult-c2);
+  margin-bottom: 12px;
 }
-.cutin-skill {
+.ult-skill-bar {
+  display: flex; align-items: center; justify-content: flex-end; gap: 14px;
+  margin-bottom: 14px;
+}
+.ult-skill-name {
   font-family: 'Noto Sans JP', sans-serif;
   font-weight: 900;
-  font-size: 2.4rem;
-  background: linear-gradient(180deg, #fff7c2, #fde047, #f59e0b, #f87171);
+  font-size: 4.5rem;
+  line-height: 1.0;
+  background: linear-gradient(180deg, #ffffff 20%, var(--ult-c2) 50%, var(--ult-c) 80%);
   -webkit-background-clip: text; background-clip: text;
   -webkit-text-fill-color: transparent;
-  filter: drop-shadow(0 4px 18px rgba(253, 224, 71, 0.7));
+  filter:
+    drop-shadow(0 4px 20px var(--ult-c))
+    drop-shadow(0 0 40px var(--ult-c));
   letter-spacing: 0.04em;
+  animation: ult-skill-pulse 1.9s ease-in-out forwards;
 }
+@keyframes ult-skill-pulse {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.04); }
+  70% { transform: scale(1); }
+  100% { transform: scale(1.02); }
+}
+.ult-bracket-l, .ult-bracket-r {
+  color: var(--ult-c);
+  font-size: 2.2rem;
+  filter: drop-shadow(0 0 12px var(--ult-c));
+  animation: ult-bracket 1.9s ease-out forwards;
+}
+@keyframes ult-bracket {
+  0%, 25% { opacity: 0; transform: scale(0); }
+  35% { opacity: 1; transform: scale(1.3); }
+  50% { transform: scale(1); }
+  80% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(0.9); }
+}
+.ult-tags {
+  display: flex; gap: 8px; justify-content: flex-end;
+}
+.ult-tag {
+  font-family: 'Orbitron', monospace;
+  font-size: 11px; font-weight: 900;
+  padding: 3px 10px;
+  border-radius: 3px;
+  letter-spacing: 0.18em;
+  background: rgba(0,0,0,0.55);
+  border: 1px solid var(--ult-c);
+  color: var(--ult-c);
+  text-shadow: 0 0 8px var(--ult-c);
+}
+.ult-tag-elem { background: var(--ult-c); color: black; text-shadow: none; }
+
+/* === Particle burst === */
+.ult-particles {
+  position: absolute; left: 50%; top: 50%;
+  width: 0; height: 0;
+}
+.ult-particles span {
+  position: absolute; left: 0; top: 0;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: radial-gradient(circle, white 30%, var(--ult-c) 60%, transparent 80%);
+  filter: drop-shadow(0 0 8px var(--ult-c));
+  opacity: 0;
+  animation: ult-particle 1.9s cubic-bezier(.2,.7,.4,1) forwards;
+}
+.particle-1  { --ang:   0deg; }
+.particle-2  { --ang:  26deg; }
+.particle-3  { --ang:  52deg; }
+.particle-4  { --ang:  78deg; }
+.particle-5  { --ang: 104deg; }
+.particle-6  { --ang: 130deg; }
+.particle-7  { --ang: 156deg; }
+.particle-8  { --ang: 182deg; }
+.particle-9  { --ang: 208deg; }
+.particle-10 { --ang: 234deg; }
+.particle-11 { --ang: 260deg; }
+.particle-12 { --ang: 286deg; }
+.particle-13 { --ang: 312deg; }
+.particle-14 { --ang: 338deg; }
+@keyframes ult-particle {
+  0%, 10% { opacity: 0; transform: rotate(var(--ang)) translateX(0); }
+  20% { opacity: 1; transform: rotate(var(--ang)) translateX(60px); }
+  85% { opacity: 0.5; transform: rotate(var(--ang)) translateX(450px); }
+  100% { opacity: 0; transform: rotate(var(--ang)) translateX(550px); }
+}
+
+/* Transition wrapper */
 .cutin-enter-active { transition: opacity 0.2s ease; }
 .cutin-enter-from { opacity: 0; }
 .cutin-leave-active { transition: opacity 0.3s ease; }

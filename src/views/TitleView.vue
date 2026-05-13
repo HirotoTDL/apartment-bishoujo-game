@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { useRouter } from "vue-router";
-import { saveAdapter } from "../save/adapter";
+import { saveAdapter, type SignInMode } from "../save/adapter";
 import { usePlayerStore } from "../stores/player";
 
 const router = useRouter();
@@ -9,11 +9,11 @@ const player = usePlayerStore();
 const busy = ref(false);
 const errorMsg = ref("");
 
-async function start() {
+async function start(mode: SignInMode = "google") {
   busy.value = true;
   errorMsg.value = "";
   try {
-    const { uid, displayName } = await saveAdapter.signIn();
+    const { uid, displayName } = await saveAdapter.signIn(mode);
     await player.initialize(uid, displayName);
     router.replace({ name: "home" });
   } catch (e: any) {
@@ -36,13 +36,19 @@ async function start() {
         50人のキャラクターが住む街で、あなたの理想の住まいを築く物語。
       </p>
       <div class="space-y-3">
-        <button class="btn w-64 text-lg" :disabled="busy" @click="start">
-          {{ busy ? "読み込み中..." : "▶ はじめる / 続きから" }}
+        <button class="btn w-64 text-lg block mx-auto" :disabled="busy" @click="start('google')">
+          {{ busy ? "読み込み中..." : "🅖 Googleでログイン" }}
+        </button>
+        <button class="btn-secondary w-64 text-base block mx-auto" :disabled="busy" @click="start('anonymous')">
+          {{ busy ? "..." : "👤 ゲストとしてプレイ" }}
         </button>
         <p v-if="!saveAdapter.isFirebase" class="text-xs text-yellow-200">
           ※ ローカル保存モード(端末固有のセーブ)。クラウドセーブを有効にするには Firebase 設定が必要です。
         </p>
-        <p v-if="errorMsg" class="text-red-300 text-sm">{{ errorMsg }}</p>
+        <p v-else class="text-xs text-white/50">
+          ログイン後はクラウドに自動セーブ。複数端末でセーブを共有可能。
+        </p>
+        <p v-if="errorMsg" class="text-red-300 text-sm mt-3 panel p-3">{{ errorMsg }}</p>
       </div>
     </div>
     <div class="mt-12 text-xs text-white/40 text-center">

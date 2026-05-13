@@ -3,10 +3,12 @@ import { localAdapter } from "./localAdapter";
 import { firebaseAdapter } from "./firebaseAdapter";
 import { firebaseConfig } from "../config/firebase";
 
+export type SignInMode = "google" | "anonymous";
+
 export interface SaveAdapter {
   load(uid: string): Promise<PlayerSave | null>;
   save(data: PlayerSave): Promise<void>;
-  signIn(): Promise<{ uid: string; displayName: string }>;
+  signIn(mode?: SignInMode): Promise<{ uid: string; displayName: string }>;
   signOut(): Promise<void>;
   isFirebase: boolean;
 }

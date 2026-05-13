@@ -111,7 +111,47 @@ export function placeholderPortrait(opts: PlaceholderOptions): string {
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
 
+// =====================================================================
+//  Real-image manifest
+// =====================================================================
+//  IDs in this set have a bitmap portrait file at:
+//    public/assets/characters/{id}/stage1/portrait_normal.png
+//  For now we only have stage-1 normal portraits, so for any stage>=2
+//  or non-portrait pose, we still fall through to the SVG placeholder.
+//
+//  To add new entries: drop the file in the public path, then add the
+//  id below. (We could auto-scan via vite glob, but public/ is not
+//  processed by the bundler, so a manual list is simplest.)
+// =====================================================================
+
+export const REAL_PORTRAIT_IDS: ReadonlySet<string> = new Set([
+  // UR (2/2)
+  "ur_001", "ur_002",
+  // SSR (4/4)
+  "ssr_001", "ssr_002", "ssr_003", "ssr_004",
+  // SR (5/5)
+  "sr_001", "sr_002", "sr_003", "sr_004", "sr_005",
+  // R (15/15)
+  "r_001", "r_002", "r_003", "r_004", "r_005", "r_006", "r_007", "r_008",
+  "r_009", "r_010", "r_011", "r_012", "r_013", "r_014", "r_015",
+  // N (1/24)
+  "n_001",
+]);
+
+function realPortraitUrl(charId: string): string {
+  const base = (import.meta as any).env?.BASE_URL ?? "/";
+  return `${base}assets/characters/${charId}/stage1/portrait_normal.png`;
+}
+
 // Helper to compute portrait for an owned character (uses charId+stage)
 export function portraitForChar(charId: string, name: string, rarity: Rarity, element: Element, stage: 1 | 2 | 3, pose: PlaceholderOptions["pose"] = "portrait"): string {
+  // If we have a real bitmap portrait for this character, prefer it.
+  // We currently only have stage-1 portrait_normal; for other stages
+  // or damaged-pose variants, use the same file (better than silhouette)
+  // until per-stage / per-pose art is generated.
+  if (REAL_PORTRAIT_IDS.has(charId)) {
+    return realPortraitUrl(charId);
+  }
+  // Otherwise fall back to the procedurally-generated SVG silhouette.
   return placeholderPortrait({ rarity, element, name: charId + name, stage, pose });
 }

@@ -352,8 +352,8 @@ function isActive(name: string) { return route.name === name; }
 .main-grid {
   flex: 1;
   display: grid;
-  grid-template-columns: 240px 1fr;
-  grid-template-rows: 1fr auto;
+  grid-template-columns: 260px 1fr;
+  grid-template-rows: minmax(0, 1fr) clamp(180px, 28vh, 240px);
   gap: 0.7rem;
   grid-template-areas: "lead actions" "party party";
   min-height: 0;
@@ -398,10 +398,29 @@ function isActive(name: string) { return route.name === name; }
   flex: 1;
   display: flex; align-items: center; justify-content: center;
   min-height: 0;
+  overflow: hidden;
 }
 .lead-wrap > * {
-  max-height: 100%;
+  height: 100%;
   width: 100%;
+  max-width: 100%;
+}
+/* Constrain PortraitCard inside the lead area to fill its parent height
+   rather than driving its size with aspect-ratio. */
+.lead-wrap :deep(.pcard) {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.lead-wrap :deep(.pcard-portrait) {
+  flex: 1;
+  aspect-ratio: auto;
+  min-height: 0;
+}
+.lead-wrap :deep(.pcard-portrait img) {
+  height: 100%;
+  width: 100%;
+  object-fit: cover;
 }
 .empty-lead {
   width: 100%;
@@ -445,13 +464,34 @@ function isActive(name: string) { return route.name === name; }
 
 .party-strip {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.5rem;
   flex: 1;
   min-height: 0;
+  overflow: hidden;
 }
-.party-slot { position: relative; cursor: pointer; min-height: 0; }
-.party-slot > * { height: 100%; }
+.party-slot {
+  position: relative; cursor: pointer;
+  min-height: 0; min-width: 0;
+  height: 100%;
+  display: flex; flex-direction: column;
+}
+/* Inside the home party strip, force PortraitCard to fit the row height */
+.party-strip :deep(.pcard) {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.party-strip :deep(.pcard-portrait) {
+  flex: 1;
+  aspect-ratio: auto;
+  min-height: 0;
+}
+.party-strip :deep(.pcard-portrait img) {
+  height: 100%;
+  width: 100%;
+  object-fit: cover;
+}
 .party-num {
   position: absolute; top: -5px; left: -5px;
   width: 22px; height: 22px;
@@ -465,7 +505,7 @@ function isActive(name: string) { return route.name === name; }
 }
 .party-empty {
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.3rem;
-  aspect-ratio: 3/5;
+  height: 100%;
   border: 2px dashed rgba(255, 255, 255, 0.1);
   border-radius: 10px;
   color: rgba(255, 255, 255, 0.25);

@@ -80,6 +80,64 @@ Every generation prompt must include:
     convert it to transparency locally.
   - Do not leave project-bound assets only in the generated-images directory.
 
+## Tasteful Exposure Rule
+
+The art may use tasteful skin exposure when it fits the character concept and
+rarity. Keep it suitable for a general-audience fantasy collection game.
+
+Allowed:
+
+- Bare shoulders, sleeveless tops, open jackets, cropped tops, midriff accents,
+  short skirts, shorts, thigh-high socks, sandals, and elegant stage costumes.
+- Beach, dancer, athletic, or adventurer outfits when they are clearly adult,
+  stylized, and non-explicit.
+- More elaborate or glamorous exposure for higher evolution stages, while
+  preserving the character identity.
+
+Not allowed:
+
+- Nudity, visible nipples, genitals, see-through sexual focus, or explicit poses.
+- Camera framing focused on breasts, hips, underwear, or crotch.
+- Childlike body proportions combined with revealing outfits.
+- Damaged-state clothing used to sexualize the character.
+
+Use exposure intensity deliberately instead of making every character equally
+safe-looking.
+
+- Low: wholesome, mostly covered, cute or elegant.
+- Medium: bare shoulders, short skirt, shorts, thigh-highs, visible legs, open
+  jacket, or cropped top.
+- High: adult glamorous social-game styling, emphasized curves, cleavage,
+  midriff, high slit, dancer/resort/fantasy costume, or bodycon silhouette.
+
+High exposure is allowed only when the prompt also states that the character is
+clearly adult, non-explicit, and not framed as nudity or underwear focus.
+
+## Illustrator Variation Rule
+
+Characters should not all look like one illustrator drew them. Keep the shared
+world as a polished anime social game, but vary the apparent artist direction by
+character.
+
+Use one art lane per character or small group:
+
+- Soft pastel painterly: airy colors, delicate eyelashes, gentle gradients.
+- Crisp cel-shaded: clean linework, sharp silhouettes, bright game-card colors.
+- Elegant fantasy: ornate clothing, refined faces, jewelry-like details.
+- Sporty pop: energetic proportions, bold shapes, saturated accents.
+- Gothic glossy: high contrast, dark fabrics, luminous eyes, dramatic hair.
+- Floral watercolor: soft edges, flower motifs, translucent fabric accents.
+- Glamorous social-game: adult proportions, confident pose, tasteful sex appeal.
+- Retro shoujo: long eyelashes, decorative hair, romantic costume silhouette.
+
+Rules:
+
+- Preserve the character identity and world first.
+- Do not copy a named living artist or a specific copyrighted franchise style.
+- Vary line thickness, face proportions, shading density, costume detail, and
+  color treatment enough that adjacent characters feel like different cards.
+- Record the intended art lane in the generation prompt.
+
 Recommended stable prompt ending:
 
 ```text

@@ -41,7 +41,7 @@ const screenShake = ref<"" | "shake" | "shake-hard">("");
 const flashOverlay = ref<{ color: string } | null>(null);
 const banner = ref<{ attacker: string; skill: string; targets: string; element: string; kind: "skill" | "ult" } | null>(null);
 const ultCutin = ref<{ name: string; skill: string; portrait: string; element: string; rarity: string; role: string } | null>(null);
-const popups = reactive<Array<{ id: number; unit: BattleUnit; value: number; kind: string; crit: boolean }>>([]);
+const popups = reactive<Array<{ id: number; unit: BattleUnit; value: number; kind: string; crit: boolean; attackerInitial?: string }>>([]);
 let popupId = 0;
 const skillFlashes = reactive<Array<{ id: number; unit: BattleUnit; element: string }>>([]);
 let flashId = 0;
@@ -88,8 +88,8 @@ function fireEffect(kind: "projectile" | "impact", element: string, from: {x:num
 
 const stage = computed(() => STAGES_BY_ID[props.stageId]);
 
-function pushPopup(unit: BattleUnit, value: number, kind: string, crit = false) {
-  popups.push({ id: ++popupId, unit, value, kind, crit });
+function pushPopup(unit: BattleUnit, value: number, kind: string, crit = false, attackerInitial?: string) {
+  popups.push({ id: ++popupId, unit, value, kind, crit, attackerInitial });
   setTimeout(() => {
     const idx = popups.findIndex(p => p.id === popupId);
     if (idx >= 0) popups.splice(idx, 1);
@@ -113,11 +113,36 @@ function buildBattle() {
   rewardSummary.value = null;
 }
 
-// Animation pacing multipliers per encounter type
-// trash → snappy, boss → cinematic
+// User-toggled battle speed mode (persisted in localStorage)
+// "quick" = always snappy (good for grinding)
+// "cinematic" = always rich (good for boss savouring)
+// "auto" = scales by encounter type (default)
+const BATTLE_SPEED_KEY = "battle_speed_mode";
+type SpeedMode = "auto" | "quick" | "cinematic";
+const speedMode = ref<SpeedMode>(
+  (localStorage.getItem(BATTLE_SPEED_KEY) as SpeedMode) || "auto"
+);
+function setSpeedMode(m: SpeedMode) {
+  speedMode.value = m;
+  localStorage.setItem(BATTLE_SPEED_KEY, m);
+}
+
+// During an attack scene we also boost the "active" feeling by remembering
+// the current attacker so the UI can highlight them and dim others.
+const activeAttacker = ref<BattleUnit | null>(null);
+const activeTargets = ref<Set<BattleUnit>>(new Set());
+
+// Animation pacing multipliers — combine encounter type with user speed mode
 function pace(ms: number): number {
-  const t = battle.value?.encounterType ?? "trash";
-  const mul = t === "trash" ? 0.55 : t === "elite" ? 0.85 : 1.0;
+  let mul: number;
+  if (speedMode.value === "quick") {
+    mul = 0.40;
+  } else if (speedMode.value === "cinematic") {
+    mul = 1.0;
+  } else {
+    const t = battle.value?.encounterType ?? "trash";
+    mul = t === "trash" ? 0.55 : t === "elite" ? 0.85 : 1.0;
+  }
   return Math.max(80, Math.floor(ms * mul));
 }
 
@@ -301,6 +326,9 @@ async function executeTurn() {
         } else break;
       }
       i = j;
+      // Highlight attacker + targets (visual clarity)
+      activeAttacker.value = actor;
+      activeTargets.value = new Set(scene.map(s => s.unit!).filter(Boolean));
       // Show the attack banner
       const targetNames = scene.map(s => s.unit?.name).filter(Boolean);
       const tStr = targetNames.length > 2
@@ -325,17 +353,20 @@ async function executeTurn() {
           fireEffect("impact", skill?.element ?? "light", fromPos, toPos, pace(550));
         }
         // Damage popup + shake
+        const initial = actor.name.slice(0, 2);
         if (s.type === "damage" && s.amount && s.unit) {
-          pushPopup(s.unit, -s.amount, skill?.element ?? "physical", s.isCritical ?? false);
+          pushPopup(s.unit, -s.amount, skill?.element ?? "physical", s.isCritical ?? false, initial);
           pushSkillFlash(s.unit, skill?.element ?? "light");
           if (s.amount > 100 || s.isCritical) shake("shake-hard"); else shake("shake");
           flash(({ fire: "#ff6b47", water: "#3aa8ff", wood: "#42d977", light: "#ffe066", dark: "#9c6cff" } as any)[skill?.element ?? "light"] ?? "#fff");
         } else if (s.type === "heal" && s.amount && s.unit) {
-          pushPopup(s.unit, s.amount, "heal");
+          pushPopup(s.unit, s.amount, "heal", false, initial);
         }
         await wait(scene.length > 1 ? pace(200) : pace(380));
       }
       banner.value = null;
+      activeAttacker.value = null;
+      activeTargets.value = new Set();
       await wait(pace(180));
       continue;
     }
@@ -600,6 +631,12 @@ const isWeaknessTo = (attackerElem: string, defenderElem: string) => {
         </div>
         <div class="bt-stage-name">{{ stage.name }}</div>
       </div>
+      <!-- Battle speed mode toggle -->
+      <div class="bt-speed-toggle" title="戦闘演出の速さ">
+        <button class="speed-btn" :class="speedMode === 'quick' && 'speed-btn--active'" @click="setSpeedMode('quick')" title="高速モード">⚡</button>
+        <button class="speed-btn" :class="speedMode === 'auto' && 'speed-btn--active'" @click="setSpeedMode('auto')" title="自動モード(雑魚速め/ボスはじっくり)">A</button>
+        <button class="speed-btn" :class="speedMode === 'cinematic' && 'speed-btn--active'" @click="setSpeedMode('cinematic')" title="演出モード">🎬</button>
+      </div>
       <!-- Turn order preview -->
       <div class="bt-turnorder">
         <div class="to-eye">NEXT ORDER</div>
@@ -628,7 +665,15 @@ const isWeaknessTo = (attackerElem: string, defenderElem: string) => {
           v-for="(e, idx) in battle.enemies" :key="idx"
           :ref="(el) => setUnitRef(e, el)"
           class="unit"
-          :class="[e.hp === 0 && 'unit--fallen', selectedTarget === e && 'unit--target', e.broken && 'unit--broken', `unit-r-${e.rarity}`]"
+          :class="[
+            e.hp === 0 && 'unit--fallen',
+            selectedTarget === e && 'unit--target',
+            e.broken && 'unit--broken',
+            `unit-r-${e.rarity}`,
+            activeAttacker === e && 'unit--acting',
+            activeTargets.has(e) && 'unit--hit',
+            activeAttacker && activeAttacker !== e && !activeTargets.has(e) && 'unit--dimmed'
+          ]"
           @click="pickTarget(e)" :disabled="e.hp === 0 || battleOver || animating"
         >
           <div class="unit-img-wrap">
@@ -639,6 +684,7 @@ const isWeaknessTo = (attackerElem: string, defenderElem: string) => {
             class="unit-flash" :style="{ color: skillElementColor[f.element] || '#fff' }"></div>
           <span v-for="p in popups.filter(pp => pp.unit === e)" :key="p.id"
             class="dpop" :class="[`dpop-${p.kind}`, p.crit && 'dpop-crit']">
+            <span v-if="p.attackerInitial" class="dpop-from">{{ p.attackerInitial }}</span>
             {{ p.value > 0 ? '+' : '' }}{{ Math.abs(p.value) }}<small v-if="p.crit">!!</small>
           </span>
           <!-- ULT gauge ring -->
@@ -697,7 +743,14 @@ const isWeaknessTo = (attackerElem: string, defenderElem: string) => {
           v-for="(a, idx) in battle.allies" :key="idx"
           :ref="(el) => setUnitRef(a, el)"
           class="unit unit--ally"
-          :class="[a.hp === 0 && 'unit--fallen', a === currentPlanner && 'unit--active', `unit-r-${a.rarity}`]"
+          :class="[
+            a.hp === 0 && 'unit--fallen',
+            a === currentPlanner && 'unit--active',
+            `unit-r-${a.rarity}`,
+            activeAttacker === a && 'unit--acting',
+            activeTargets.has(a) && 'unit--hit',
+            activeAttacker && activeAttacker !== a && !activeTargets.has(a) && 'unit--dimmed'
+          ]"
         >
           <div class="unit-img-wrap">
             <img :src="portraitOf(a, 'battle')" />
@@ -707,6 +760,7 @@ const isWeaknessTo = (attackerElem: string, defenderElem: string) => {
             class="unit-flash" :style="{ color: skillElementColor[f.element] || '#fff' }"></div>
           <span v-for="p in popups.filter(pp => pp.unit === a)" :key="p.id"
             class="dpop" :class="[`dpop-${p.kind}`, p.crit && 'dpop-crit']">
+            <span v-if="p.attackerInitial" class="dpop-from">{{ p.attackerInitial }}</span>
             {{ p.value > 0 ? '+' : '' }}{{ Math.abs(p.value) }}
           </span>
           <!-- ULT ready indicator -->
@@ -1319,6 +1373,34 @@ const isWeaknessTo = (attackerElem: string, defenderElem: string) => {
   50% { box-shadow: 0 0 14px rgba(239, 68, 68, 1); }
 }
 
+/* Battle speed toggle */
+.bt-speed-toggle {
+  display: flex; gap: 2px;
+  background: rgba(0,0,0,0.4);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 5px;
+  padding: 2px;
+}
+.speed-btn {
+  width: 28px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px;
+  background: transparent;
+  border: none;
+  color: rgba(255,255,255,0.6);
+  border-radius: 3px;
+  cursor: pointer;
+  font-family: 'Orbitron', monospace;
+  font-weight: 900;
+  transition: all 0.2s ease;
+}
+.speed-btn:hover { background: rgba(255,255,255,0.08); color: white; }
+.speed-btn--active {
+  background: linear-gradient(135deg, #ff6b9d, #c34dff);
+  color: white;
+  box-shadow: 0 0 10px rgba(255, 107, 157, 0.5);
+}
+
 .bt-turnorder {
   display: flex; flex-direction: column; align-items: center; gap: 2px;
   padding: 2px 6px;
@@ -1364,8 +1446,10 @@ const isWeaknessTo = (attackerElem: string, defenderElem: string) => {
   border-radius: 8px; overflow: hidden; padding: 0; cursor: pointer;
   transition: all 0.25s cubic-bezier(.2,.9,.3,1.4);
   clip-path: polygon(0 6px, 6px 0, calc(100% - 6px) 0, 100% 6px, 100% calc(100% - 6px), calc(100% - 6px) 100%, 6px 100%, 0 calc(100% - 6px));
+  /* Reserve solid bottom for HP/MP so face is never covered by text */
+  --unit-bot-h: 38px;
 }
-.unit--ally { flex: 0 1 140px; }
+.unit--ally { flex: 0 1 140px; --unit-bot-h: 50px; }
 .unit:hover:not(:disabled):not(.unit--fallen) { transform: translateY(-3px) scale(1.02); }
 .unit--target {
   border-color: #f87171 !important;
@@ -1385,6 +1469,29 @@ const isWeaknessTo = (attackerElem: string, defenderElem: string) => {
   box-shadow: 0 0 0 2px rgba(253, 224, 71, 0.7), 0 0 22px rgba(253, 224, 71, 0.5);
 }
 
+/* === Battle clarity: highlight the acting unit + targets, dim others === */
+.unit--acting {
+  transform: translateY(-6px) scale(1.08);
+  z-index: 12;
+  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.95), 0 0 36px rgba(96, 165, 250, 0.8), 0 12px 24px rgba(0,0,0,0.6) !important;
+  filter: brightness(1.15) saturate(1.2);
+}
+.unit--hit {
+  transform: translateY(-2px) scale(1.03);
+  box-shadow: 0 0 0 2.5px rgba(248, 113, 113, 0.9), 0 0 24px rgba(248, 113, 113, 0.65) !important;
+  z-index: 11;
+  animation: hit-shake 0.18s ease-out 0.25s 2;
+}
+@keyframes hit-shake {
+  0%, 100% { transform: translateY(-2px) scale(1.03) translateX(0); }
+  50% { transform: translateY(-2px) scale(1.03) translateX(-4px); }
+}
+.unit--dimmed {
+  filter: brightness(0.45) saturate(0.5) blur(0.5px);
+  opacity: 0.65;
+  transition: filter 0.2s ease, opacity 0.2s ease;
+}
+
 .unit-r-N { border-color: rgba(148,163,184,0.4); }
 .unit-r-R { border-color: rgba(96,165,250,0.6); box-shadow: 0 0 10px rgba(96,165,250,0.25); }
 .unit-r-SR { border-color: rgba(192,132,252,0.7); box-shadow: 0 0 14px rgba(192,132,252,0.35); }
@@ -1392,10 +1499,15 @@ const isWeaknessTo = (attackerElem: string, defenderElem: string) => {
 .unit-r-UR { border-color: rgba(248,113,113,0.85); box-shadow: 0 0 22px rgba(248,113,113,0.5); }
 
 .unit-img-wrap { position: relative; width: 100%; flex: 1; min-height: 0; overflow: hidden; }
-.unit-img-wrap img { width: 100%; height: 100%; object-fit: cover; filter: contrast(1.08) saturate(1.15); }
-.unit-img-grad { position: absolute; inset: auto 0 0 0; height: 50%; background: linear-gradient(to top, rgba(14,8,28,0.95), rgba(14,8,28,0.4) 60%, transparent); }
+.unit-img-wrap img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 5%; filter: contrast(1.08) saturate(1.15); }
+.unit-img-grad { position: absolute; inset: auto 0 0 0; height: 22%; background: linear-gradient(to top, rgba(14,8,28,0.9), transparent); pointer-events: none; }
 
-.unit-tag-l { position: absolute; top: 4px; left: 4px; display: flex; gap: 2px; z-index: 5; align-items: center; }
+.unit-tag-l {
+  position: absolute; top: 4px; left: 4px;
+  display: flex; flex-direction: column; gap: 2px; z-index: 5; align-items: flex-start;
+  /* Smaller corner badges minimise face overlap */
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6));
+}
 .rarity-badge { font-family: 'Orbitron', monospace; font-size: 8px; font-weight: 900; padding: 1px 4px; border-radius: 2px; letter-spacing: 0.05em; color: white; }
 .rb-N { background: linear-gradient(135deg, #94a3b8, #475569); }
 .rb-R { background: linear-gradient(135deg, #60a5fa, #1d4ed8); }
@@ -1415,7 +1527,8 @@ const isWeaknessTo = (attackerElem: string, defenderElem: string) => {
   font-family: 'M PLUS Rounded 1c', sans-serif;
   font-size: 8px; font-weight: 800;
   padding: 1px 4px;
-  background: rgba(0,0,0,0.5);
+  background: rgba(0,0,0,0.65);
+  backdrop-filter: blur(2px);
   border: 1px solid rgba(255,255,255,0.15);
   border-radius: 2px;
   color: #f9a8d4;
@@ -1425,7 +1538,15 @@ const isWeaknessTo = (attackerElem: string, defenderElem: string) => {
 .lvl-pre { font-family: 'Orbitron', monospace; font-size: 7px; color: rgba(255,255,255,0.7); }
 .lvl-num { font-family: 'Orbitron', monospace; font-size: 12px; font-weight: 900; color: #fde047; }
 
-.unit-bot { position: absolute; bottom: 0; left: 0; right: 0; padding: 4px 6px 6px; z-index: 5; }
+.unit-bot {
+  /* Solid panel below the portrait — keeps name/HP/MP off the face */
+  position: relative;
+  flex-shrink: 0;
+  padding: 4px 6px 6px;
+  background: linear-gradient(180deg, rgba(14, 8, 28, 0.92), rgba(8, 4, 18, 1));
+  border-top: 1px solid rgba(255, 200, 230, 0.1);
+  z-index: 5;
+}
 .unit-name { font-size: 10px; font-weight: 800; color: white; text-shadow: 0 1px 2px rgba(0,0,0,0.7); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px; }
 .hpbar, .mpbar { position: relative; height: 7px; background: rgba(0,0,0,0.7); border-radius: 2px; overflow: hidden; margin-bottom: 2px; }
 .mpbar { height: 5px; }
@@ -1538,6 +1659,19 @@ const isWeaknessTo = (attackerElem: string, defenderElem: string) => {
 .dpop-wood { color: #4ade80; }
 .dpop-dark { color: #c084fc; }
 .dpop-heal { color: #6ee7b7; }
+.dpop-from {
+  display: inline-block;
+  font-size: 0.45em;
+  vertical-align: super;
+  padding: 1px 4px;
+  margin-right: 3px;
+  background: rgba(0,0,0,0.7);
+  border: 1px solid currentColor;
+  border-radius: 2px;
+  letter-spacing: 0.04em;
+  text-shadow: none;
+  font-weight: 800;
+}
 @keyframes float-up { 0% { transform: translate(-50%, -50%) scale(0.4); opacity: 0; } 15% { transform: translate(-50%, -70%) scale(1.3); opacity: 1; } 100% { transform: translate(-50%, -150%) scale(1); opacity: 0; } }
 
 .unit-flash { position: absolute; inset: -15%; background: radial-gradient(circle, rgba(255,255,255,0.9) 0%, currentColor 35%, transparent 70%); border-radius: 50%; mix-blend-mode: screen; animation: skill-burst 0.8s ease-out forwards; pointer-events: none; z-index: 8; }

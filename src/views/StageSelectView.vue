@@ -2,7 +2,7 @@
 import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
 import { usePlayerStore } from "../stores/player";
-import { STAGES_BY_CHAPTER } from "../game/data/stages";
+import { STAGES_BY_CHAPTER, STAGES_BY_ID } from "../game/data/stages";
 import ScenicBackground from "../components/ScenicBackground.vue";
 import Icon from "../components/Icon.vue";
 
@@ -40,7 +40,18 @@ function chapterTheme(ch: number): { color: string; from: string; to: string; ac
   return themes[ch] ?? themes[1];
 }
 
-function isUnlocked(stageId: string) { return player.save!.unlockedStages.includes(stageId); }
+// Source of truth: clearedStages. unlockedStages is mirrored but in case
+// of any inconsistency we derive unlock state from cleared.
+function isUnlocked(stageId: string): boolean {
+  const s = STAGES_BY_ID[stageId];
+  if (!s) return false;
+  // Root stages (no prerequisite) are always unlocked
+  if (!s.unlockAfter) return true;
+  // Otherwise: unlocked when the prerequisite stage is cleared
+  if (player.save!.clearedStages.includes(s.unlockAfter)) return true;
+  // Belt-and-suspenders: also accept the explicit unlocked list
+  return player.save!.unlockedStages.includes(stageId);
+}
 function isCleared(stageId: string) { return player.save!.clearedStages.includes(stageId); }
 function go(stageId: string) { if (isUnlocked(stageId)) router.push({ name: "battle", params: { stageId } }); }
 function prevChapter() { chapterIdx.value = Math.max(0, chapterIdx.value - 1); }

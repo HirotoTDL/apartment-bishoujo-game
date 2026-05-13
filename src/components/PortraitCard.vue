@@ -167,7 +167,8 @@ const element = computed(() => master.value!.element);
   overflow: hidden;
 }
 .pcard-portrait img {
-  width: 100%; height: 100%; object-fit: cover; display: block;
+  width: 100%; height: 100%; object-fit: cover; object-position: 50% 5%;
+  display: block;
   filter: contrast(1.08) saturate(1.15);
 }
 .pcard-portrait-grad {

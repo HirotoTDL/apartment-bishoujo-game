@@ -413,6 +413,7 @@ function isActive(name: string) { return route.name === name; }
   height: 100%;
   width: 100%;
   object-fit: cover;
+  object-position: 50% 5%;
 }
 .empty-lead {
   width: 100%;
@@ -483,6 +484,7 @@ function isActive(name: string) { return route.name === name; }
   height: 100%;
   width: 100%;
   object-fit: cover;
+  object-position: 50% 5%;
 }
 .party-num {
   position: absolute; top: -5px; left: -5px;

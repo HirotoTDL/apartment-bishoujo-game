@@ -248,7 +248,7 @@ function viewChar(id: string) {
 }
 
 .dex-portrait { position: relative; width: 100%; aspect-ratio: 3/4; overflow: hidden; }
-.dex-portrait img { width: 100%; height: 100%; object-fit: cover; filter: contrast(1.08) saturate(1.15); }
+.dex-portrait img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 5%; filter: contrast(1.08) saturate(1.15); }
 .dex-silhouette {
   width: 100%; height: 100%;
   display: flex; align-items: center; justify-content: center;

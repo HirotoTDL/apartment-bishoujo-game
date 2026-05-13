@@ -247,7 +247,7 @@ function skillIconFor(s: any): string {
 .cd-portrait-card.rarity-SSR { border-color: #fbbf24; box-shadow: 0 0 28px rgba(251,191,36,0.55); }
 .cd-portrait-card.rarity-UR { border-color: #f87171; box-shadow: 0 0 32px rgba(248,113,113,0.65); }
 .cd-portrait-img {
-  width: 100%; height: 100%; object-fit: cover;
+  width: 100%; height: 100%; object-fit: cover; object-position: 50% 5%;
   filter: contrast(1.08) saturate(1.15);
 }
 .cd-portrait-grad {
@@ -432,7 +432,7 @@ function skillIconFor(s: any): string {
 .cd-evo.rarity-UR { border-color: rgba(248,113,113,0.8); }
 .cd-evo--locked { opacity: 0.45; filter: grayscale(0.6); }
 .cd-evo-img { position: relative; aspect-ratio: 3/4; overflow: hidden; }
-.cd-evo-img img { width: 100%; height: 100%; object-fit: cover; }
+.cd-evo-img img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 5%; }
 .cd-evo-lock {
   position: absolute; inset: 0;
   background: rgba(0,0,0,0.65);

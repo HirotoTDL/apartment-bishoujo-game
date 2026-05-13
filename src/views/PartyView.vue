@@ -201,7 +201,7 @@ const sortLabels = { rarity: "レア度", level: "レベル", newest: "入手順
   flex: 1; aspect-ratio: auto; min-height: 0;
 }
 .pv-party-grid .pv-slot :deep(.pcard-portrait img) {
-  height: 100%; width: 100%; object-fit: cover;
+  height: 100%; width: 100%; object-fit: cover; object-position: 50% 5%;
 }
 .pv-empty {
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.3rem;

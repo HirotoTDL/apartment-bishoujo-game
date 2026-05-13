@@ -33,7 +33,7 @@ async function rest() {
     <header class="flex items-center justify-between mb-6 flex-wrap gap-2">
       <div>
         <h2 class="text-2xl font-bold">ようこそ、{{ player.save.displayName }} さん</h2>
-        <p class="text-white/60 text-sm">アパート☆ガーデン総合管理パネル</p>
+        <p class="text-white/60 text-sm">ハートフルゴリオン(仮)総合管理パネル</p>
       </div>
       <div class="flex gap-3 text-sm bg-black/30 rounded-lg px-4 py-2">
         <span>💰 {{ summary.gold }} G</span>

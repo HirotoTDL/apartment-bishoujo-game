@@ -28,7 +28,7 @@ async function start() {
   <div class="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-purple-900 via-pink-900 to-rose-900 text-white p-6">
     <div class="text-center max-w-2xl">
       <h1 class="text-5xl md:text-6xl font-black mb-2 drop-shadow-glow tracking-wider">
-        アパート☆ガーデン
+        ハートフルゴリオン(仮)
       </h1>
       <p class="text-pink-200 text-lg mb-2 tracking-widest">— Apartment Bishoujo Collection —</p>
       <p class="text-white/70 my-6 leading-relaxed">

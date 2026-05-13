@@ -1,4 +1,4 @@
-# アパート☆ガーデン (Apartment Bishoujo Collection)
+# ハートフルゴリオン(仮) (Apartment Bishoujo Collection)
 
 全国のアパート/レジデンス名から生まれた美少女50人と出会い、戦い、仲間にして育てる
 ブラウザ向けキャラクター収集ゲームです。

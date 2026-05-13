@@ -6,7 +6,7 @@ import { startStage, nextEncounter, recordBattleWon } from "../game/stageRunner"
 import { toBattleUnit, expReward } from "../game/growth";
 import {
   createBattle, planAction, planEnemies, resolveTurn,
-  attemptCapture, captureProbability, turnOrderPreview,
+  attemptCapture, captureProbability,
   SKILLS, type BattleState,
 } from "../game/battle";
 import { ROLE_LABEL } from "../game/data/skills";
@@ -108,10 +108,38 @@ function buildBattle() {
   const { enemies, type } = nextEncounter(progress.value);
   for (const e of enemies) player.seenRarity(e.rarity);
   battle.value = createBattle(allyUnits, enemies, type);
+  displayHp.clear();
+  displayMp.clear();
+  snapshotDisplayBars();
   resetPlanner();
   battleOver.value = false;
   rewardSummary.value = null;
 }
+
+// "Display" HP/MP track what the player sees as the bar value, separate
+// from the engine's authoritative state. This lets us animate the bar
+// drain AFTER the skill projectile/impact has played, even though the
+// engine has already mutated u.hp synchronously.
+const displayHp = reactive(new Map<BattleUnit, number>());
+const displayMp = reactive(new Map<BattleUnit, number>());
+
+function getDisplayHp(u: BattleUnit): number {
+  const v = displayHp.get(u);
+  return v != null ? v : u.hp;
+}
+function getDisplayMp(u: BattleUnit): number {
+  const v = displayMp.get(u);
+  return v != null ? v : u.mp;
+}
+function snapshotDisplayBars() {
+  if (!battle.value) return;
+  for (const u of [...battle.value.allies, ...battle.value.enemies]) {
+    displayHp.set(u, u.hp);
+    displayMp.set(u, u.mp);
+  }
+}
+function commitDisplayHp(u: BattleUnit) { displayHp.set(u, u.hp); }
+function commitDisplayMp(u: BattleUnit) { displayMp.set(u, u.mp); }
 
 // User-toggled battle speed mode (persisted in localStorage)
 // "quick" = always snappy (good for grinding)
@@ -187,7 +215,6 @@ const usableSkills = computed(() => {
 const captureItems = computed(() => Object.values(ITEMS).filter(i => i.kind === "capture" && (player.items[i.id] ?? 0) > 0));
 const consumables = computed(() => Object.values(ITEMS).filter(i => i.kind === "consumable" && (player.items[i.id] ?? 0) > 0));
 
-const turnOrder = computed(() => battle.value ? turnOrderPreview(battle.value) : []);
 
 function pickSkill(skillId: string) {
   selectedSkillId.value = skillId;
@@ -207,8 +234,34 @@ function pickSkill(skillId: string) {
   }
 }
 function pickTarget(u: BattleUnit) {
-  if (!u || u.hp === 0) return;
-  selectedTarget.value = u;
+  if (!u) return;
+  const skill = selectedSkillId.value ? SKILLS[selectedSkillId.value] : null;
+  if (!skill) return;
+  // Validate target type
+  const isEnemy = u.side === "enemy";
+  switch (skill.target) {
+    case "single_enemy":
+      if (isEnemy && u.hp > 0) selectedTarget.value = u;
+      break;
+    case "single_ally":
+    case "lowest_hp_ally":
+      if (!isEnemy && u.hp > 0) selectedTarget.value = u;
+      break;
+    case "single_dead_ally":
+      if (!isEnemy && u.hp === 0) selectedTarget.value = u;
+      break;
+    // self / all_* targets ignore click
+  }
+}
+
+// Can the user pick this ally as a target right now?
+function canPickAlly(u: BattleUnit): boolean {
+  if (!selectedSkillId.value) return false;
+  const s = SKILLS[selectedSkillId.value];
+  if (!s) return false;
+  if (s.target === "single_ally" || s.target === "lowest_hp_ally") return u.hp > 0;
+  if (s.target === "single_dead_ally") return u.hp === 0;
+  return false;
 }
 
 function commitCurrentPlan() {
@@ -329,6 +382,8 @@ async function executeTurn() {
       // Highlight attacker + targets (visual clarity)
       activeAttacker.value = actor;
       activeTargets.value = new Set(scene.map(s => s.unit!).filter(Boolean));
+      // Commit attacker's MP consumption now (visible on banner)
+      commitDisplayMp(actor);
       // Show the attack banner
       const targetNames = scene.map(s => s.unit?.name).filter(Boolean);
       const tStr = targetNames.length > 2
@@ -357,10 +412,12 @@ async function executeTurn() {
         if (s.type === "damage" && s.amount && s.unit) {
           pushPopup(s.unit, -s.amount, skill?.element ?? "physical", s.isCritical ?? false, initial);
           pushSkillFlash(s.unit, skill?.element ?? "light");
+          commitDisplayHp(s.unit);  // HP bar drops AFTER projectile/impact, not before
           if (s.amount > 100 || s.isCritical) shake("shake-hard"); else shake("shake");
           flash(({ fire: "#ff6b47", water: "#3aa8ff", wood: "#42d977", light: "#ffe066", dark: "#9c6cff" } as any)[skill?.element ?? "light"] ?? "#fff");
         } else if (s.type === "heal" && s.amount && s.unit) {
           pushPopup(s.unit, s.amount, "heal", false, initial);
+          commitDisplayHp(s.unit);
         }
         await wait(scene.length > 1 ? pace(200) : pace(380));
       }
@@ -485,8 +542,7 @@ function syncHpMpToPlayer() {
 function nextBattle() { rewardSummary.value = null; buildBattle(); }
 function exit() { router.replace({ name: "stages" }); }
 
-const logRef = ref<HTMLDivElement | null>(null);
-function scrollLog() { if (logRef.value) logRef.value.scrollTop = logRef.value.scrollHeight; }
+function scrollLog() { scrollSideLog(); }
 
 function portraitOf(u: BattleUnit, pose: "portrait" | "battle" | "broken_light" | "broken_heavy" = "battle"): string {
   const m = CHARACTERS_BY_ID[u.charId]!;
@@ -509,6 +565,38 @@ function skillIconFor(s: any): string {
 }
 
 const skillElementColor: Record<string, string> = { fire: "#ff6b47", water: "#3aa8ff", wood: "#42d977", light: "#ffe066", dark: "#9c6cff" };
+
+// Skill detail hover state
+const hoveredSkillId = ref<string | null>(null);
+const hoveredSkill = computed(() => hoveredSkillId.value ? SKILLS[hoveredSkillId.value] : null);
+function statusJp(id: string): string {
+  return statusName(id);
+}
+
+// Enriched battle log: attach actor + side info to each line
+// Detection: a line that starts with a unit's name is attributed to them.
+const enrichedLog = computed(() => {
+  if (!battle.value) return [] as Array<{
+    text: string; kind?: string;
+    actor?: BattleUnit; side: "ally" | "enemy" | "neutral";
+  }>;
+  const allUnits = [...battle.value.allies, ...battle.value.enemies];
+  return battle.value.log.slice(-40).map(l => {
+    // Try to find a unit whose name appears at the start of the line
+    let actor: BattleUnit | undefined;
+    for (const u of allUnits) {
+      if (l.text.startsWith(u.name)) { actor = u; break; }
+    }
+    const side = actor?.side ?? "neutral";
+    return { ...l, actor, side };
+  });
+});
+
+// Auto-scroll the side log when new entries arrive
+const sideLogRef = ref<HTMLDivElement | null>(null);
+function scrollSideLog() {
+  if (sideLogRef.value) sideLogRef.value.scrollTop = sideLogRef.value.scrollHeight;
+}
 
 function statusName(id: string): string {
   const m: Record<string, string> = {
@@ -637,16 +725,6 @@ const isWeaknessTo = (attackerElem: string, defenderElem: string) => {
         <button class="speed-btn" :class="speedMode === 'auto' && 'speed-btn--active'" @click="setSpeedMode('auto')" title="自動モード(雑魚速め/ボスはじっくり)">A</button>
         <button class="speed-btn" :class="speedMode === 'cinematic' && 'speed-btn--active'" @click="setSpeedMode('cinematic')" title="演出モード">🎬</button>
       </div>
-      <!-- Turn order preview -->
-      <div class="bt-turnorder">
-        <div class="to-eye">NEXT ORDER</div>
-        <div class="to-list">
-          <div v-for="(u, i) in turnOrder.slice(0, 6)" :key="i"
-            class="to-item" :class="u.side === 'ally' ? 'to-ally' : 'to-enemy'">
-            <img :src="portraitOf(u, 'portrait')" />
-          </div>
-        </div>
-      </div>
       <div class="bt-progress">
         <div class="bt-progress-segs">
           <span v-for="i in progress.battlesToClear" :key="i"
@@ -656,6 +734,10 @@ const isWeaknessTo = (attackerElem: string, defenderElem: string) => {
         <div class="bt-turn">T<span>{{ battle.turn }}</span></div>
       </div>
     </header>
+
+    <!-- BODY: main column + side log column -->
+    <div class="bt-body">
+      <div ref="battleRootEl" class="bt-main">
 
     <!-- ENEMY ARENA -->
     <section class="arena">
@@ -703,8 +785,8 @@ const isWeaknessTo = (attackerElem: string, defenderElem: string) => {
           <div class="unit-bot">
             <div class="unit-name">{{ e.name }}</div>
             <div class="hpbar">
-              <div class="hpbar-fill" :style="{ width: (e.hp / e.hpMax * 100) + '%' }"></div>
-              <span class="hpbar-text">{{ e.hp }}/{{ e.hpMax }}</span>
+              <div class="hpbar-fill" :style="{ width: (getDisplayHp(e) / e.hpMax * 100) + '%' }"></div>
+              <span class="hpbar-text">{{ getDisplayHp(e) }}/{{ e.hpMax }}</span>
             </div>
             <div v-if="e.statuses.length" class="status-row">
               <span v-for="s in e.statuses.slice(0, 4)" :key="s.status" class="status-chip">{{ statusName(s.status as string) }}</span>
@@ -719,21 +801,6 @@ const isWeaknessTo = (attackerElem: string, defenderElem: string) => {
       </div>
     </section>
 
-    <!-- CENTER LOG -->
-    <section class="bt-log-section">
-      <div ref="logRef" class="bt-log">
-        <div v-for="(l, i) in battle.log.slice(-8)" :key="i" class="log-line" :class="{
-          'log-damage': l.kind === 'damage',
-          'log-heal': l.kind === 'heal',
-          'log-skill': l.kind === 'skill',
-          'log-ult': l.kind === 'ult',
-          'log-break': l.kind === 'break',
-          'log-status': l.kind === 'status' || l.kind === 'capture',
-          'log-victory': l.kind === 'victory',
-          'log-defeat': l.kind === 'defeat',
-        }">{{ l.text }}</div>
-      </div>
-    </section>
 
     <!-- ALLY ARENA -->
     <section class="arena">
@@ -749,8 +816,11 @@ const isWeaknessTo = (attackerElem: string, defenderElem: string) => {
             `unit-r-${a.rarity}`,
             activeAttacker === a && 'unit--acting',
             activeTargets.has(a) && 'unit--hit',
-            activeAttacker && activeAttacker !== a && !activeTargets.has(a) && 'unit--dimmed'
+            activeAttacker && activeAttacker !== a && !activeTargets.has(a) && 'unit--dimmed',
+            selectedTarget === a && 'unit--target-ally',
+            canPickAlly(a) && 'unit--targetable',
           ]"
+          @click="pickTarget(a)"
         >
           <div class="unit-img-wrap">
             <img :src="portraitOf(a, 'battle')" />
@@ -775,12 +845,12 @@ const isWeaknessTo = (attackerElem: string, defenderElem: string) => {
           <div class="unit-bot">
             <div class="unit-name">{{ a.name }}</div>
             <div class="hpbar">
-              <div class="hpbar-fill" :style="{ width: (a.hp / a.hpMax * 100) + '%' }"></div>
-              <span class="hpbar-text">{{ a.hp }}/{{ a.hpMax }}</span>
+              <div class="hpbar-fill" :style="{ width: (getDisplayHp(a) / a.hpMax * 100) + '%' }"></div>
+              <span class="hpbar-text">{{ getDisplayHp(a) }}/{{ a.hpMax }}</span>
             </div>
             <div class="mpbar">
-              <div class="mpbar-fill" :style="{ width: (a.mp / Math.max(1, a.mpMax) * 100) + '%' }"></div>
-              <span class="mpbar-text">MP {{ a.mp }}</span>
+              <div class="mpbar-fill" :style="{ width: (getDisplayMp(a) / Math.max(1, a.mpMax) * 100) + '%' }"></div>
+              <span class="mpbar-text">MP {{ getDisplayMp(a) }}</span>
             </div>
             <div v-if="a.statuses.length" class="status-row">
               <span v-for="s in a.statuses.slice(0, 4)" :key="s.status" class="status-chip">{{ statusName(s.status as string) }}</span>
@@ -809,7 +879,9 @@ const isWeaknessTo = (attackerElem: string, defenderElem: string) => {
             `skill-tile--${s.element || 'neutral'}`
           ]"
           :disabled="!s.usable || animating"
-          @click="pickSkill(s.id)"
+          @click="pickSkill(s.id); hoveredSkillId = s.id"
+          @mouseenter="hoveredSkillId = s.id"
+          @mouseleave="hoveredSkillId = null"
         >
           <div class="skill-icon"><Icon :name="skillIconFor(s)" :size="16" /></div>
           <div class="skill-text">
@@ -820,6 +892,46 @@ const isWeaknessTo = (attackerElem: string, defenderElem: string) => {
           <div v-else-if="s.mpCost > 0" class="skill-mp"><span>{{ s.mpCost }}</span><small>MP</small></div>
         </button>
       </div>
+
+      <!-- Skill detail panel — appears when hovering / selecting a skill -->
+      <transition name="skillinfo">
+        <div v-if="hoveredSkill || (selectedSkillId && SKILLS[selectedSkillId])"
+             class="skill-info" :class="`skill-info--${(hoveredSkill || SKILLS[selectedSkillId!]).element}`">
+          <div class="si-head">
+            <span class="si-name">{{ (hoveredSkill || SKILLS[selectedSkillId!]).name }}</span>
+            <span class="si-kind">{{ (hoveredSkill || SKILLS[selectedSkillId!]).kind }}</span>
+            <span v-if="(hoveredSkill || SKILLS[selectedSkillId!]).mpCost > 0" class="si-mp">MP {{ (hoveredSkill || SKILLS[selectedSkillId!]).mpCost }}</span>
+            <span v-if="(hoveredSkill || SKILLS[selectedSkillId!]).cooldown" class="si-cd">CD {{ (hoveredSkill || SKILLS[selectedSkillId!]).cooldown }}T</span>
+            <span v-if="(hoveredSkill || SKILLS[selectedSkillId!]).ultimate" class="si-ult">★ULT</span>
+          </div>
+          <div class="si-desc">{{ (hoveredSkill || SKILLS[selectedSkillId!]).description }}</div>
+          <div class="si-effects">
+            <span v-for="(ef, idx) in (hoveredSkill || SKILLS[selectedSkillId!]).effects" :key="idx" class="si-effect-chip">
+              <template v-if="ef.type === 'damage'">威力 {{ ef.power }}</template>
+              <template v-else-if="ef.type === 'heal'">回復 {{ ef.power }}</template>
+              <template v-else-if="ef.type === 'shield'">盾 {{ ef.shieldAmount }} ({{ ef.turns }}T)</template>
+              <template v-else-if="ef.type === 'status'">{{ statusJp(ef.status!) }} {{ Math.round((ef.chance ?? 1) * 100) }}% ({{ ef.turns }}T)</template>
+              <template v-else-if="ef.type === 'buff'">{{ ef.stat?.toUpperCase() }} {{ ef.pct! > 0 ? '+' : '' }}{{ ef.pct }}% ({{ ef.turns }}T)</template>
+              <template v-else-if="ef.type === 'debuff'">{{ ef.stat?.toUpperCase() }} {{ ef.pct! > 0 ? '+' : '' }}{{ ef.pct }}% ({{ ef.turns }}T)</template>
+              <template v-else-if="ef.type === 'cleanse'">デバフ解除</template>
+              <template v-else-if="ef.type === 'revive'">蘇生 {{ ef.revivePct }}%</template>
+              <template v-else-if="ef.type === 'taunt'">挑発 ({{ ef.turns }}T)</template>
+              <template v-else-if="ef.type === 'ult_charge'">ULT +{{ ef.ultGain }}</template>
+            </span>
+          </div>
+          <div class="si-target">対象: {{
+            ({
+              single_enemy: '敵単体',
+              all_enemies: '敵全体',
+              single_ally: '味方単体',
+              lowest_hp_ally: '味方単体(HP低)',
+              all_allies: '味方全体',
+              self: '自身',
+              single_dead_ally: '倒れた味方',
+            } as any)[(hoveredSkill || SKILLS[selectedSkillId!]).target] || ''
+          }}</div>
+        </div>
+      </transition>
 
       <div class="cmd-bar">
         <button class="cmd cmd--prev" :disabled="activePlannerIdx === 0 || animating" @click="goBackPlanner">
@@ -865,6 +977,32 @@ const isWeaknessTo = (attackerElem: string, defenderElem: string) => {
         </div>
       </div>
     </section>
+      </div><!-- /.bt-main -->
+
+      <!-- ============== RIGHT-SIDE BATTLE LOG ============== -->
+      <aside class="bt-side-log-wrap">
+        <div class="bt-side-log-head">
+          <span class="dot dot-ally"></span><span>BATTLE LOG</span>
+          <span class="bt-side-turn">T<b>{{ battle.turn }}</b></span>
+        </div>
+        <div ref="sideLogRef" class="bt-side-log">
+          <div v-for="(l, i) in enrichedLog" :key="i"
+            class="logrow" :class="[`log-side-${l.side}`, `log-${l.kind || 'info'}`]">
+            <div v-if="l.actor" class="logrow-avatar">
+              <img :src="portraitOf(l.actor, 'portrait')" />
+            </div>
+            <div v-else class="logrow-spacer"></div>
+            <div class="logrow-body">
+              <div v-if="l.actor" class="logrow-name">
+                {{ l.actor.name }}
+                <span class="logrow-side-tag">{{ l.side === 'ally' ? '味方' : '敵' }}</span>
+              </div>
+              <div class="logrow-text">{{ l.text }}</div>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div><!-- /.bt-body -->
 
     <!-- RESULT -->
     <div v-if="battleOver" class="result-overlay">
@@ -1428,6 +1566,121 @@ const isWeaknessTo = (attackerElem: string, defenderElem: string) => {
 .bt-turn { font-family: 'Orbitron', monospace; font-size: 9px; letter-spacing: 0.2em; color: rgba(255,255,255,0.5); }
 .bt-turn span { color: white; font-weight: 800; font-size: 12px; }
 
+/* BODY layout: main column + right log */
+.bt-body {
+  flex: 1; min-height: 0;
+  display: flex;
+  gap: 0;
+}
+.bt-main {
+  flex: 1; min-width: 0; min-height: 0;
+  display: flex; flex-direction: column;
+  position: relative;
+}
+
+/* Right-side vertical log */
+.bt-side-log-wrap {
+  width: 240px;
+  flex-shrink: 0;
+  display: flex; flex-direction: column;
+  background: linear-gradient(180deg, rgba(15, 8, 30, 0.92), rgba(10, 5, 20, 0.95));
+  border-left: 1px solid rgba(255, 200, 230, 0.15);
+  backdrop-filter: blur(12px);
+}
+.bt-side-log-head {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 12px;
+  font-family: 'Orbitron', monospace;
+  font-size: 10px;
+  letter-spacing: 0.25em;
+  color: rgba(255, 200, 230, 0.7);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.bt-side-log-head .dot { background: linear-gradient(135deg, #ff6b9d, #c34dff); box-shadow: 0 0 6px rgba(255,107,157,0.8); }
+.bt-side-turn { margin-left: auto; }
+.bt-side-turn b { color: white; font-size: 14px; }
+
+.bt-side-log {
+  flex: 1; min-height: 0;
+  overflow-y: auto;
+  padding: 6px;
+  display: flex; flex-direction: column-reverse;  /* newest at bottom, visually shows recent */
+}
+.bt-side-log::-webkit-scrollbar { width: 4px; }
+.bt-side-log::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 2px; }
+
+.logrow {
+  display: flex; gap: 6px; align-items: flex-start;
+  padding: 5px 6px;
+  margin-bottom: 3px;
+  border-radius: 4px;
+  border-left: 3px solid rgba(255,255,255,0.15);
+  background: rgba(255,255,255,0.02);
+  font-size: 11px;
+  line-height: 1.35;
+  animation: logrow-in 0.4s cubic-bezier(.2,.9,.3,1.2) backwards;
+}
+@keyframes logrow-in {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.log-side-ally {
+  background: linear-gradient(90deg, rgba(96,165,250,0.18), rgba(96,165,250,0.04));
+  border-left-color: #60a5fa;
+}
+.log-side-enemy {
+  background: linear-gradient(90deg, rgba(248,113,113,0.18), rgba(248,113,113,0.04));
+  border-left-color: #f87171;
+}
+.log-side-neutral {
+  border-left-color: rgba(255,255,255,0.2);
+}
+.logrow-avatar {
+  width: 32px; height: 32px;
+  flex-shrink: 0;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.2);
+}
+.log-side-ally .logrow-avatar { border-color: #60a5fa; }
+.log-side-enemy .logrow-avatar { border-color: #f87171; }
+.logrow-avatar img {
+  width: 100%; height: 100%;
+  object-fit: cover; object-position: 50% 5%;
+}
+.logrow-spacer { width: 32px; flex-shrink: 0; }
+.logrow-body { flex: 1; min-width: 0; }
+.logrow-name {
+  font-size: 10.5px;
+  font-weight: 800;
+  display: flex; align-items: center; gap: 4px;
+}
+.log-side-ally .logrow-name { color: #93c5fd; }
+.log-side-enemy .logrow-name { color: #fca5a5; }
+.logrow-side-tag {
+  font-family: 'Orbitron', monospace;
+  font-size: 7px;
+  padding: 1px 4px;
+  background: rgba(0,0,0,0.4);
+  border-radius: 2px;
+  letter-spacing: 0.1em;
+  color: rgba(255,255,255,0.6);
+}
+.logrow-text {
+  color: rgba(255,255,255,0.85);
+  font-size: 10.5px;
+  white-space: normal;
+  word-break: break-word;
+}
+.logrow.log-damage .logrow-text { color: #fca5a5; }
+.logrow.log-heal .logrow-text { color: #6ee7b7; }
+.logrow.log-skill .logrow-text { color: #f9a8d4; font-weight: 700; }
+.logrow.log-ult .logrow-text { color: #fde047; font-weight: 800; }
+.logrow.log-break .logrow-text { color: #fde047; }
+.logrow.log-status .logrow-text, .logrow.log-capture .logrow-text { color: #fde68a; }
+.logrow.log-victory .logrow-text { color: #6ee7b7; font-weight: 800; }
+.logrow.log-defeat .logrow-text { color: #fb7185; font-weight: 800; }
+
 /* ARENAS */
 .arena { padding: 0.3rem 0.85rem; flex-shrink: 0; min-height: 0; flex: 1; display: flex; flex-direction: column; }
 .arena-tag { display: flex; align-items: center; gap: 0.4rem; font-family: 'Orbitron', monospace; font-size: 9px; letter-spacing: 0.3em; color: rgba(255, 200, 230, 0.65); margin-bottom: 0.25rem; flex-shrink: 0; }
@@ -1467,6 +1720,18 @@ const isWeaknessTo = (attackerElem: string, defenderElem: string) => {
 .unit--broken {
   border-color: #fde047 !important;
   box-shadow: 0 0 0 2px rgba(253, 224, 71, 0.7), 0 0 22px rgba(253, 224, 71, 0.5);
+}
+.unit--targetable {
+  cursor: pointer;
+  animation: targetable-pulse 1.4s ease-in-out infinite;
+}
+@keyframes targetable-pulse {
+  0%, 100% { box-shadow: 0 0 0 1.5px rgba(110, 231, 183, 0.5), 0 0 10px rgba(110, 231, 183, 0.4); }
+  50% { box-shadow: 0 0 0 2px rgba(110, 231, 183, 0.9), 0 0 18px rgba(110, 231, 183, 0.7); }
+}
+.unit--target-ally {
+  border-color: #34d399 !important;
+  box-shadow: 0 0 0 2.5px rgba(52, 211, 153, 0.9), 0 0 22px rgba(52, 211, 153, 0.6) !important;
 }
 
 /* === Battle clarity: highlight the acting unit + targets, dim others === */
@@ -1732,6 +1997,74 @@ const isWeaknessTo = (attackerElem: string, defenderElem: string) => {
   font-size: 0.9rem;
   letter-spacing: 0.1em;
 }
+
+/* Skill detail panel */
+.skill-info {
+  margin: 0.4rem 0 0.5rem;
+  padding: 0.55rem 0.7rem;
+  background: linear-gradient(135deg, rgba(0,0,0,0.7), rgba(15,8,30,0.85));
+  border: 1px solid var(--si-c, rgba(255, 200, 230, 0.4));
+  border-left: 3px solid var(--si-c, #ff6b9d);
+  border-radius: 5px;
+  backdrop-filter: blur(8px);
+}
+.skill-info--fire { --si-c: #ff8c42; }
+.skill-info--water { --si-c: #60a5fa; }
+.skill-info--wood { --si-c: #4ade80; }
+.skill-info--light { --si-c: #fde047; }
+.skill-info--dark { --si-c: #c084fc; }
+.si-head {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; margin-bottom: 4px;
+}
+.si-name {
+  font-weight: 900; font-size: 14px;
+  color: white;
+  text-shadow: 0 0 8px var(--si-c);
+}
+.si-kind {
+  font-family: 'Orbitron', monospace;
+  font-size: 9px; letter-spacing: 0.2em;
+  padding: 1px 5px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 2px;
+  color: rgba(255,255,255,0.7);
+}
+.si-mp, .si-cd, .si-ult {
+  font-family: 'Orbitron', monospace;
+  font-size: 10px; font-weight: 800;
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+.si-mp { background: rgba(96, 165, 250, 0.25); color: #93c5fd; border: 1px solid rgba(96,165,250,0.4); }
+.si-cd { background: rgba(255, 200, 230, 0.15); color: #f9a8d4; border: 1px solid rgba(255, 107, 157, 0.4); }
+.si-ult { background: linear-gradient(135deg, #fde047, #f59e0b); color: white; }
+.si-desc {
+  font-size: 11.5px;
+  color: rgba(255,255,255,0.9);
+  line-height: 1.5;
+  margin-bottom: 5px;
+}
+.si-effects {
+  display: flex; flex-wrap: wrap; gap: 4px;
+  margin-bottom: 4px;
+}
+.si-effect-chip {
+  font-size: 10px;
+  padding: 1px 6px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 3px;
+  color: rgba(255,255,255,0.85);
+}
+.si-target {
+  font-family: 'Orbitron', monospace;
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  color: rgba(255, 200, 230, 0.65);
+}
+.skillinfo-enter-active, .skillinfo-leave-active { transition: all 0.2s ease; }
+.skillinfo-enter-from, .skillinfo-leave-to { opacity: 0; transform: translateY(-4px); }
 
 .cmd-bar { display: flex; gap: 0.35rem; flex-wrap: wrap; }
 .cmd { display: flex; align-items: center; gap: 0.3rem; padding: 0.5rem 0.85rem; border: 1px solid; border-radius: 4px; font-weight: 700; font-size: 0.82rem; transition: all 0.2s ease; clip-path: polygon(5px 0, calc(100% - 5px) 0, 100% 5px, 100% calc(100% - 5px), calc(100% - 5px) 100%, 5px 100%, 0 calc(100% - 5px), 0 5px); }

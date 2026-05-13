@@ -437,8 +437,11 @@ function applyEffect(state: BattleState, actor: BattleUnit, skill: Skill, effect
     case "heal": {
       for (const t of targets) {
         const mag = effectiveStat(actor, "mag");
-        const raw = (effect.power ?? 0) * (1 + mag / 120);
-        const amount = Math.min(t.hpMax - t.hp, Math.floor(raw));
+        // Reduced scaling so healers don't out-heal damage trivially
+        const raw = (effect.power ?? 0) * (1 + mag / 220);
+        // Per-skill cap: cannot heal more than 55% of max HP in one cast
+        const capped = Math.min(raw, t.hpMax * 0.55);
+        const amount = Math.min(t.hpMax - t.hp, Math.floor(capped));
         t.hp += amount;
         state.events.push({ type: "heal", actor, unit: t, amount });
         logs.push({ text: `${t.name} のHPが ${amount} 回復！`, kind: "heal" });
